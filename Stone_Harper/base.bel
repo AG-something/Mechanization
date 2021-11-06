@@ -1,0 +1,5 @@
+% Some basic types
+LF nat : type =
+  | zero : nat
+  | succ : nat → nat
+;
