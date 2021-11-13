@@ -1,0 +1,219 @@
+%  Algebraic equality in the simply typed λ-calculus
+
+%  Goal :  Show that equality of terms is decidable in the simply typed λ-calculus with unit type
+%              We do so using a Kripke style logical relation very much like the one for weak normalization
+
+%-------------------------------------------------------------------------------------------------------------------------
+% Syntax 
+LF tm : type =
+  | lam : ( tm → tm ) → tm
+  | app : tm → tm → tm
+;
+
+LF tp : type =
+  | unit : tp
+  | arr : tp → tp → tp
+;
+
+LF oft : tm → tp → type = 
+  | t_lam : ( { x : tm } oft x A → oft ( M x ) B ) → oft ( lam M ) ( arr A B )
+  | t_app : oft M ( arr A B ) → oft N A → oft ( app M N ) B
+;
+
+
+%-------------------------------------------------------------------------------------------------------------------------
+% Operational semantics
+% We define the extended step →* in one go
+LF step : tm → tm → type = 
+  % Single steps :
+  | s_beta : step ( app ( lam M ) N ) ( M N )
+  | s_eta : oft M ( arr A B ) → step M ( lam ( \x. app M x ) )
+  | s_lam : ( { x : tm } step ( M x ) ( N x ) ) → step ( lam M ) ( lam N )
+  | s_app1 : step M M' → step ( app M N ) ( app M' N )
+  | s_app2 : step N N' → step ( app M N ) ( app M N' )
+
+  % Multiple steps :
+  | s_ref : step M M
+  | s_trans : step M1 M2 → step M2 M3 → step M1 M3
+;
+
+
+%-------------------------------------------------------------------------------------------------------------------------
+% Declarative equality
+%         M == N : A      Terms M and N are declaratively equal at type A
+
+% We will define this form of equality using the convenient axioms of equivalence
+% But since those are not syntax directed, it will be very hard to prove decidability with a syntax-based argument
+% In other words, a simple induction on the proof structure will not work.
+LF dec_eq : tm → tm → tp → type = 
+  % Syntax directed rules
+  | d_unit : oft M unit → oft N unit 
+             → dec_eq M N unit
+  | d_app : dec_eq M1 N1 ( arr A B ) → dec_eq M2 N2 A 
+            → dec_eq ( app M1 M2 ) ( app N1 N2 ) B
+  | d_lam : ( { x : tm } oft x A → dec_eq ( M x ) ( N x ) B ) 
+    → dec_eq ( lam ( \x. M x ) ) ( lam ( \x. N x ) ) ( arr A B )
+  | d_beta : ( { x : tm } oft x A → dec_eq ( M1 x ) ( N1 x ) B ) → dec_eq M2 N2 A 
+             → dec_eq ( app ( lam M1 ) M2 ) ( N1 N2 ) B
+  | d_ext : ( { x : tm } oft x A → dec_eq ( M x ) ( N x ) B ) → dec_eq ( lam M ) ( lam N ) ( arr A B )  
+
+  % Non-syntax directed rules  ( axioms of equivalence )
+  | d_refl : oft M A → dec_eq M M A
+  | d_sym : dec_eq M N A → dec_eq N M A
+  | d_trans : dec_eq M1 M2 A → dec_eq M2 M3 A → dec_eq M1 M3 A
+;
+
+
+%-------------------------------------------------------------------------------------------------------------------------
+%  Algorithmic Equality
+%             M <=> N : A       Terms M and N are algorithmically equivalent at type A
+%             M <-> N : A        Paths M and N are algorithmically equivalent at type A
+
+% Term equivalence is similar to normal terms (in weak normalization)
+% Path equivalence is similar to neutral terms
+% They are defined by simultaneous induction as LF types
+LF tm_algeq : tm → tm → tp → type =
+  | alg_unit : step M M' → step N N' 
+               → p_algeq M' N' unit 
+               → tm_algeq M N unit
+  | alg_arr : ( { x : tm } p_algeq x x A → tm_algeq ( app M x ) ( app N x ) B ) 
+              → tm_algeq M N ( arr A B )
+
+and p_algeq : tm → tm → tp → type =
+  | alg_app : p_algeq M1 M2 ( arr A B ) 
+              → tm_algeq N1 N2 A 
+              → p_algeq ( app M1 N1 ) ( app M2 N2 ) B
+;
+
+
+%-------------------------------------------------------------------------------------------------------------------------
+%  Logical Relation
+%             R_{i}( Ψ , M1 , M2 )           iff    Ψ ⊢ M1 <=> M2 : i
+%             R_{A→B}( Ψ, M1, M2 )     iff    For all Φ >_π Ψ  and all N1, N2 such that  Φ ⊢ N1 : A  and  Φ ⊢ N2 : A
+%                                                                  If R_{A}( Φ , N1 , N2 ) , then R_{B}( Φ , M1[π] N1 , M2[π] N2 )
+
+%  Where Ψ is a 'Well-typed algorithmic equality context, and i is the base/unit type :
+schema actx = some [ t : tp ] block ( x : tm , p_x : p_algeq x x t );
+
+stratified Log_eq : ( ψ : actx ) { M1 : [ ψ ⊢ tm ] } { M2 : [ ψ ⊢ tm ] } { A : [ ⊢ tp ] } ctype =
+  | R_base : [ ψ ⊢ tm_algeq M1 M2 unit ] 
+             → Log_eq [ ψ ⊢ M1 ] [ ψ ⊢ M2 ] [ ⊢ unit ]
+  | R_arr : { M1 : [ ψ ⊢ tm ] } { M2 : [ ψ ⊢ tm ] }
+            ( { φ : actx }  { $π : [ φ ⊢ ψ ] }  { N1 : [ φ ⊢ tm ] } { N2 : [ φ ⊢ tm ] }
+               Log_eq [ φ ⊢ N1 ] [ φ ⊢ N2 ] [ ⊢ A ]
+              → Log_eq [ φ ⊢ app M1[$π] N1 ] [ φ ⊢ app M2[$π] N2 ] [ ⊢ B ]  )
+            → Log_eq [ ψ ⊢ M1 ] [ ψ ⊢ M2 ] [ ⊢ arr A B ]
+;
+            
+           
+%-------------------------------------------------------------------------------------------------------------------------
+% Lemma ( Monotonicity ) 
+%         If R_{A}( Ψ , M1 , M2 ) and Φ >_π Ψ , then R_{A}( Φ , M1[π] , M2[π] )
+rec monotonicity : { φ : actx } { $π : [ φ ⊢ ψ ] } Log_eq [ ψ ⊢ M1 ] [ ψ ⊢ M2 ] [ ⊢ A ]
+                   → Log_eq [ φ ⊢ M1[$π] ] [ φ ⊢ M2[$π] ] [ ⊢ A ] = 
+/ total ( monotonicity) / 
+mlam φ ⇒ mlam $π ⇒ fn l ⇒ case l of
+  | R_base [ ψ ⊢ TA ] ⇒ R_base [ _ ⊢ TA[$π] ]
+  | R_arr [ ψ ⊢ M1 ] [ ψ ⊢ M2 ] f ⇒ 
+        R_arr [ φ ⊢ M1[$π] ] 
+                   [ φ ⊢ M2[$π] ] 
+                   ( mlam φ' , $ρ , N1 , N2 ⇒ fn l' ⇒ 
+                       f [ φ' ] [ _ ⊢ $π[$ρ] ] [ _ ⊢ _ ] [ _ ⊢ _ ] l'
+                   )
+;
+
+
+%-------------------------------------------------------------------------------------------------------------------------
+% Lemma ( Weak Head Closure under Expansion )
+%          If R_{A}( Ψ, N1 , N2 ) ,  M1 →* N1 , and M2 →* N2 , then  R_{A}( Ψ , M1 , M2 )
+
+% To prove this, we first need to show that red
+rec closed : ( ψ : actx ) { A : [ ⊢ tp ] } [ ψ ⊢ step M1 N1 ] → [ ψ ⊢ step M2 N2 ] 
+             → Log_eq [ ψ ⊢ N1 ] [ ψ ⊢ N2 ] [ ⊢ A ] 
+             → Log_eq [ ψ ⊢ M1 ] [ ψ ⊢ M2 ] [ ⊢ A ] = 
+/ total a ( closed a ) /
+mlam T ⇒ fn S0 ⇒ fn R0 ⇒ fn l ⇒ case [ ⊢ T ] of 
+  | [ ⊢ unit ] ⇒ 
+        let R_base [ ψ ⊢ alg_unit S1 R1 PA ] = l in 
+        let [ ψ ⊢ S2 ] = S0 in 
+        let [ ψ ⊢ R2 ] = R0 in 
+        R_base [ ψ ⊢ alg_unit ( s_trans S2 S1 ) 
+                                                 ( s_trans R2 R1 ) 
+                                                 PA ]
+  | [ ⊢ arr A B ] ⇒ 
+        let R_arr [ ψ ⊢ N1 ] [ ψ ⊢ N2 ] f = l in 
+        let [ ψ ⊢ S1 ] = S0 in
+        let [ ψ ⊢ R1 ] = R0 in 
+        R_arr [ ψ ⊢ _ ] 
+                   [ ψ ⊢ _ ] 
+                   ( mlam φ , $ρ , N1' , N2'  ⇒ fn l' ⇒ 
+                         let l'' = f [ φ ] 
+                                         [ _ ⊢ $ρ ] 
+                                         [ _ ⊢ N1' ]
+                                         [ _ ⊢ N2' ] 
+                                         l' in
+                         closed [ ⊢ B ]
+                                      [ _ ⊢ s_app1 S1[$ρ] ]
+                                      [ _ ⊢ s_app1 R1[$ρ] ] 
+                                      l''
+                   )
+
+;
+
+
+%-------------------------------------------------------------------------------------------------------------------------
+%  Main Lemma :
+%        ( Reflection )   If Ψ ⊢ M <-> N : A  then R_{A}( Ψ , M , N )
+%        ( Reification )  If R_{A}( Ψ , M , N ) , then Ψ ⊢ M <=> N : A
+rec reflect : ( ψ : actx ) { A : [ ⊢ tp ] } [ ψ ⊢ p_algeq M N A[] ] 
+              → Log_eq [ ψ ⊢ M ] [ ψ ⊢ N ] [ ⊢ A ] =
+/ total a ( reflect a ) /
+mlam T ⇒ fn pa ⇒ case [ ⊢ T ] of 
+  | [ ⊢ unit ] ⇒ 
+        let [ ψ ⊢ PA ] = pa in 
+        R_base [ ψ ⊢ alg_unit s_ref s_ref PA ]
+  | [ ⊢ arr A B ] ⇒
+	let [ ψ ⊢ PA ] = pa in
+	R_arr [ ψ ⊢ _ ] [ ψ ⊢ _ ]
+	      ( mlam φ , $π , N1 , N2 ⇒ fn l ⇒
+		    let [ φ ⊢ ta ] = reify [ ⊢ A ] l in
+		    reflect [ ⊢ B ] [ φ ⊢ alg_app PA[$π] ta ]
+	      )
+
+and rec reify : ( ψ : actx ) { A : [ ⊢ tp ] } 
+                Log_eq [ ψ ⊢ M ] [ ψ ⊢ N ] [ ⊢ A ]
+                → [ ψ ⊢ tm_algeq M N A[] ] =
+/ total a ( reify a ) /
+mlam T ⇒ fn l ⇒ case [ ⊢ T ] of 
+  | [ ⊢ unit ] ⇒ 
+        let R_base [ ψ ⊢ PA ] = l in 
+        [ ψ ⊢ PA ]
+  | [ ⊢ arr A B ] ⇒
+	let R_arr [ ψ ⊢ M1 ] [ ψ ⊢ M2 ] f = l in
+	let [ ψ , b : block x : tm , y : p_algeq x x A[] ⊢ TA ] = reify [ ⊢ B ]
+								   ( f [ ψ , b : block x :tm , y : p_algeq x x A[] ]
+								       [ ψ , b ⊢ .. ]
+								       [ ψ , b ⊢ b.1 ]
+								       [ ψ , b ⊢ b.1 ]
+								       ( reflect [ ⊢ A ]
+										 [ ψ , b : block x : tm , y : p_algeq x x A[] ⊢ b.2 ]
+								       )
+								   ) in 
+	[ ψ ⊢ alg_arr \x. \y. TA[ .. , < x ; y > ] ]
+;
+
+
+%-------------------------------------------------------------------------------------------------------------------------
+%  Logical relation extended to contexts ( for open terms )
+%            R_ε                =   { Φ ⊢ ε == ε } 
+%            R_{Γ , x : A }     =   { Φ ⊢ (σ , M/x ) == ( ρ , N/x )  |  Φ ⊢ M : A , Φ ⊢ N : A , AND ( Φ ⊢ σ == ρ ) \in R_Γ  }
+%  Where Γ is a typing context
+schema tctx = some [ t : tp ] block ( x : tm , t_x : oft x t );
+
+inductive Log_sub : ( ψ : actx ) { γ : tctx } { $σ : [ ψ ⊢ γ ] } { $ρ : [ ψ ⊢ γ ] } ctype =
+  | R_empty : Log_sub [] [ ψ ⊢ ^ ] [ ψ ⊢ ^ ]
+  | R_cons : Log_sub [ γ ] [ ψ ⊢ $σ ] [ ψ ⊢ $ρ ] → Log_eq [ ψ ⊢ M1 ] [ ψ ⊢ M2 ] [ ⊢ A ]
+	     → { D1 : [ ψ ⊢ oft M1 A[] ] } { D2 : [ ψ ⊢ oft M2 A[] ] }
+	       Log_sub [ γ , b : block x : tm , t_x : oft x A[] ] [ ψ ⊢ $σ , < M1 ; D1 > ] [ ψ ⊢ $ρ , < M2 ; D2 > ]
+;
+
