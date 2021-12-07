@@ -1,0 +1,64 @@
+%{----------------------------------------------------------------------------------------------
+    Operational semantics of the λ-calculus
+           Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 21-26
+           Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+    The semantics of our calculus is given by six new judgments.
+    But before we can look at them, we will need the new notion of a "hole context" :
+           ε ∷=   <>     * This is a hole (the symbol in the paper is a diamond)
+                | ε M
+		| π1 ε
+		| π2 ε
+    
+    The idea is then to apply the hole context on some term,
+    with the understanding that ε[M] fills the hole with M
+     * This doesn't seem like a context in the usual sense of the word.
+----------------------------------------------------------------------------------------------}%
+LF hole_ctx : type =
+  | hole : hole_ctx
+  | h_app : hole_ctx → tm
+	    → hole_ctx
+  | h_proj1 : hole_ctx
+	      → hole_ctx
+  | h_proj2 : hole_ctx
+	      → hole_ctx
+;
+
+rec fill_hole : [ Γ ⊢ hole_ctx ] → [ Γ ⊢ tm ]
+		→ [ Γ ⊢ tm ] =
+/total h ( fill_hole _ h m ) /
+fn h ⇒ fn m ⇒ ?
+;
+
+%{----------------------------------------------------------------------------------------------
+           Natural Types        Γ |> c_i ^ b
+                                Γ |> x ^ Γ(x)
+                                Γ |> π1(p) ^ A				if Γ |> p ^ Σy:A.B
+                                Γ |> π2(p) ^ ( B π1(p) )    		if Γ |> p ^ Σy:A.B
+                                Γ |> p M ^ [M/y]B      	    		if Γ |> p ^ Πy:A.B
+
+	   Head Reduction	Γ |> ε[ (λx:A.M) N ] ~> ε[ [N/x]M ]
+                                Γ |> ε[ π1<M,N> ] ~> ε[M]
+                                Γ |> ε[ π2<M,N> ] ~> ε[N]
+                                Γ |> ε[ p ] ~> ε[ N ]			if Γ |> p ^ S(N)
+
+	   Head Normalization	Γ |> M||M
+                                Γ |> M||N				if Γ |> M ~> M' and Γ |> M'||N
+
+	   Term Normalization	Γ |> M:b ⇒ N				if Γ |> M||M' and Γ |> M' → N ^ b
+                                Γ |> M:S(N) ⇒ M''			if Γ |> M||M' and Γ |> M' → M'' ^ b
+                                Γ |> M:Πx:A.B ⇒ λx:C.N			if Γ |> A ⇒ C and Γ, x:A |> ( M x ):B ⇒ N
+                                Γ |> M:Σx:A.B ⇒ <N,N'>			if Γ |> π1(M):A ⇒ N and Γ |> π2(M):[π1(M)/x]B ⇒ N'
+
+	   Path Normalization	Γ |> c_i → c_i ^ b
+                                Γ |> x → x ^ Γ(x)
+                                Γ |> p M → p' M' ^ [M/x]B		if Γ |> p → p' ^ Πx:A.B and Γ |> M:A ⇒ M'
+                                Γ |> π1(p) → π1(p') ^ A			if Γ |> p → p' ^ Σx:A.B
+                                Γ |> π2(p) → π2(p') ^ [π1(p)/x]A	if Γ |> p → p' ^ Σx:A.B
+                                
+	   Type Normalization	Γ |> b ⇒ b
+                                Γ |> S(M) ⇒ S(N)			if Γ |> M:b ⇒ M'
+                                Γ |> Πx:A.A' ⇒ Πx:B.B'			if Γ |> A ⇒ B and Γ,x:A |> A' ⇒ B'
+                                Γ |> Σx:A.A' ⇒ Σx:B.B'			if Γ |> A ⇒ B and Γ,x:A |> A' ⇒ B'
+----------------------------------------------------------------------------------------------}%
