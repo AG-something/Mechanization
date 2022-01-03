@@ -70,7 +70,7 @@ LF wf_tp : tp → type =
   | wf_pi : ( { x : tm } wt_tm x A → wf_tp ( B x ) ) 
                   → wf_tp ( pi A B )
   | wf_sigma :  ( { x : tm } wt_tm x A → wf_tp ( B x ) ) 
-                  → wf_tp ( sigma A B )
+                          → wf_tp ( sigma A B )
 
 
 % Subtypes
@@ -180,7 +180,7 @@ and deq_tm : tm → tm → tp → type =
   | deq_sub : deq_tm M N A
                        → sub_tp A B
                        → deq_tm M N B
-  | deq_sing : wt_tm M ( sing N )
+  | deq_sing_tm : wt_tm M ( sing N )
                         → deq_tm M N ( sing N )
 ;
 

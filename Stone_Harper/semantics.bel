@@ -15,8 +15,10 @@
     with the understanding that ε[M] fills the hole with M
      * This doesn't seem like a context in the usual sense of the word.
 ----------------------------------------------------------------------------------------------}%
+
+
 LF hole_ctx : type =
-  | hole : hole_ctx
+  | hole : hole_ctx 
   | h_app : hole_ctx → tm
 	    → hole_ctx
   | h_proj1 : hole_ctx
@@ -40,6 +42,17 @@ fn h ⇒ fn m ⇒ case h of
   | [ Γ ⊢ h_proj2 ε ] ⇒
  	let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ ε ] m in
 	[ Γ ⊢ proj2 M ]		       
+;
+
+   
+
+% Now a path is any term of the form ε[x] or ε[c]
+%  * It would be a lot easier if I could use the fill_hole function when defining a type
+LF path : tm → type =
+  | p_cons : { n : nat } path ( const n )
+  | p_app : path M → tm → path ( app M N )
+  | p_proj1 : path M → path ( proj1 M )
+  | p_proj2 : path M → path ( proj2 M )
 ;
 
 %{----------------------------------------------------------------------------------------------
@@ -74,21 +87,92 @@ fn h ⇒ fn m ⇒ case h of
                                 Γ |> Πx:A.A' ⇒ Πx:B.B'			if Γ |> A ⇒ B and Γ,x:A |> A' ⇒ B'
                                 Γ |> Σx:A.A' ⇒ Σx:B.B'			if Γ |> A ⇒ B and Γ,x:A |> A' ⇒ B'
 ----------------------------------------------------------------------------------------------}%
+% Natural types
+LF nat_tp : path M → tp → type =
+  | nt_base : { n : nat } nat_tp ( p_cons n ) base
+  | nt_proj1 : nat_tp P ( sigma A B )
+                       → nat_tp ( p_proj1 P ) A
+  | nt_proj2 : nat_tp P ( sigma A B )
+                       → nat_tp ( p_proj2 P ) ( B ( proj1 M ) )
+  | nt_app : nat_tp P ( pi A B ) → tm
+                     → nat_tp ( p_app P N ) ( B N )
+;
+
+%{
 LF nat_tp : tm → tp → type =
+  | nt_base : { n : nat } nat_tp ( const n ) base
+  | nt_proj1 : nat_tp P ( sigma A B )
+                       → nat_tp ( proj1 P ) A
+  | nt_proj2 : nat_tp P ( sigma A B )
+                       → nat_tp ( proj2 P ) ( B ( proj1 P ) )
+  | nt_app : nat_tp P ( pi A B )
+                     → nat_tp ( app P M ) ( B M )
+;
+}%
+
+% Head reductions
+LF head_red : tm → tm → type =  % Not sure how to this ?? ( Actually, all of this )
+;
 
 
-and head_red : tm → tm → type =
+% Head normalization
+LF head_norm : tm → tm → type =
+  | hn_refl : head_norm M M
+  | hn_red : head_red M M' → head_norm M' N
+                    → head_norm M N
+;
 
 
-and head_norm : tm → tm → type =
+% Term normalization
+LF term_norm : tm → tp → tm → type =
 
 
-and term_norm : wt_tm M A → tm → type =
+% Path normalization
+and path_norm : tm → tm → tp → type =
 
 
-and path_norm : tm → nat_tp M A → type =
-
-
+% Type normalization
 and type_norm : tp → tp → type =
 
+;
+
+
+
+%{----------------------------------------------------------------------------------------------
+    Lemma 4.1 ( Determinacy ) 
+        (1) If  Γ |> p ^ N1  and  Γ |> p ^ N2, then N1 = N2
+        (2) If  Γ |> M : A ⇒ N1  and  Γ |> M : A ⇒ N2 , then N1 = N2
+        (3) If  Γ |> p → p1 ^ A1  and  Γ |> p → p2 ^ A2,  then p1 = p2  and  A1 = A2
+        (4) If  Γ |> A ⇒ B1  and  Γ |> A ⇒ B2, then  B1 = B2
+
+    * Equality here is identity up to renaming of bound variables
+----------------------------------------------------------------------------------------------}%
+LF tp_eq : tp → tp → type =
+  | refl : tp_eq A A
+;
+
+
+rec nat_tp_det : ( Γ : tctx) { p : [ Γ ⊢ path M ] }
+                               [ Γ ⊢ nat_tp p A ] → [ Γ ⊢ nat_tp p B ] 
+                               → [ Γ ⊢ tp_eq A B ] = 
+/ total p ( nat_tp_det _ _ _ _ p _ _ ) /
+mlam p ⇒ fn D ⇒ fn E ⇒ case [ _ ⊢ p ] of
+  | [ Γ ⊢ p_cons n ] ⇒ 
+        let [ Γ ⊢ nt_base n ] = D in
+        let [ Γ ⊢ nt_base n ] = E in 
+        [ Γ ⊢ refl ]
+
+  | [ Γ ⊢ p_app q N ] ⇒ ?
+
+  | [ Γ ⊢ p_proj1 q ] ⇒ 
+        let [ Γ ⊢ nt_proj1 D' ] = D in 
+        let [ Γ ⊢ nt_proj1 E' ] = E in
+        let [ Γ ⊢ refl ] = nat_tp_det [ Γ ⊢ q ] [ Γ ⊢ D' ] [ Γ ⊢ E' ] in
+        [ Γ ⊢ refl ]
+
+  | [ Γ ⊢ p_proj2 q ] ⇒ 
+        let ( [ Γ ⊢ q ] : [ Γ ⊢ path M ] ) = [ Γ ⊢ q ] in 
+        let [ Γ ⊢ nt_proj2 D' ] = D in 
+        let [ Γ ⊢ nt_proj2 E' ] = E in
+        let [ Γ ⊢ refl ] = nat_tp_det [ Γ ⊢ q ] [ Γ ⊢ D' ] [ Γ ⊢ E' ] in ?
 ;
