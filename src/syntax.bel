@@ -23,8 +23,6 @@
 				                   | π_i(M)           Projections
 ----------------------------------------------------------------------------------------------}%
 % We will need natural numbers to index the constants
-%  * Not sure if this is really necessary.
-%     Would just one constant suffice?
 LF nat : type = 
   | zero : nat
   | succ : nat → nat
@@ -33,13 +31,14 @@ LF nat : type =
 % Terms
 LF tm : type = 
   | const : nat → tm
-  | lam : ( tm → tm ) → tm          %  Maybe this should be   tp → ( tm → tm ) → tm  ??
+  | lam : ( tm → tm ) → tm
   | app : tm → tm → tm
   | pair : tm → tm → tm
   | proj1 : tm → tm
   | proj2 : tm → tm
 ;
 
+% Types
 LF tp : type =
   | base : tp
   | sing : tm → tp
@@ -50,15 +49,14 @@ LF tp : type =
 
 %{---------------------------------------------------------------------------------------------
     Judgments :
-               Well-formed types                          Γ ⊢ A
-               Subtypes                                           Γ ⊢ A < B
-               Declarative equality of types        Γ ⊢ A == B
+               Well-formed types                          Γ ⊢ A                                   Γ ⊢ wf_tp A
+               Subtypes                                           Γ ⊢ A < B                            Γ ⊢ sub_tp A B
+               Declarative equality of types        Γ ⊢ A == B                          Γ ⊢ deq_tp A B
 
-               Well-typed terms                             Γ ⊢ M : A
-               Declarative equality of terms        Γ ⊢ M == N : A
+               Well-typed terms                             Γ ⊢ M : A                            Γ ⊢ wt_tm M A
+               Declarative equality of terms        Γ ⊢ M == N : A                   Γ ⊢ deq_tm M N A
 
-               Well-formed context                       Γ ⊢ ok
-                 * This should all be taken care of by Beluga
+               Well-formed context                       Γ ⊢ ok                                 This we get for free!
 ----------------------------------------------------------------------------------------------}%
 % The judgments are defined by simultaneous induction
 
@@ -183,7 +181,6 @@ and deq_tm : tm → tm → tp → type =
   | deq_sing_tm : wt_tm M ( sing N )
                         → deq_tm M N ( sing N )
 ;
-
 
 
 % And finally, we can define typing contexts : 
