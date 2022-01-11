@@ -30,14 +30,64 @@ LF elim_ctx : type =
 % To encode paths, we will first define a type to compute the term obtained from filling an elimination context
 %   *  "filled_ctx ε M N" is suppose to mean "ε[M] = N" ( i.e. they are exactly the same expression )
 LF filled_ctx : elim_ctx → tm → tm → type =
-  | f_hole : filled_ctx e_hole M M
-  | f_app : filled_ctx E M N
+  | f_hole : { M : tm } filled_ctx e_hole M M
+  | f_app : {  M' : tm } filled_ctx E M N
                   → filled_ctx ( e_app E M' ) M ( app N M' )
   | f_proj1 : filled_ctx E M N
                      → filled_ctx ( e_proj1 E ) M ( proj1 N )
   | f_proj2 : filled_ctx E M N
                      → filled_ctx ( e_proj2 E ) M ( proj2 N )
 ;
+
+% It will also be useful to have a function that fills the holes
+% In other words, we want to prove that for any ε and M, there is an N such that ε[M] = N
+% To do this, we need to skolemize as there are no existential quantifiers in Beluga
+LF exists_filled : type =
+  | filled : filled_ctx E M N → exists_filled
+;
+
+rec fill_hole_skolem : ( Γ : tctx ) [ Γ ⊢ elim_ctx ] → [ Γ ⊢ tm ] 
+                                         → [ Γ ⊢ exists_filled ] = 
+/ total e ( fill_hole_skolem _ e _ ) /
+fn e ⇒  fn m ⇒ let [ Γ ⊢ M ] = m in 
+               ( case e of
+                 | [ Γ ⊢ e_hole ] ⇒ 
+                       let [ Γ ⊢ F ] = [ Γ ⊢ f_hole M ] in
+                       [ Γ ⊢ filled F ]
+
+                 | [ Γ ⊢ e_app E' M' ] ⇒ 
+                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in 
+                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_app M' F ] in 
+                       [ Γ ⊢ filled F' ]
+
+                 | [ Γ ⊢ e_proj1 E' ] ⇒ 
+                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in
+                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_proj1 F ] in
+                       [ Γ ⊢ filled F' ]
+
+                 | [ Γ ⊢ e_proj2 E' ] ⇒ 
+                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in
+                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_proj2 F ] in
+                       [ Γ ⊢ filled F' ]
+               )
+;
+
+rec fill_hole : ( Γ : tctx ) [ Γ ⊢ elim_ctx ] → [ Γ ⊢ tm ]
+                         → [ Γ ⊢ tm ] =
+/ total e ( fill_hole γ e m ) /
+fn e ⇒ fn m ⇒ case e of
+  | [ Γ ⊢ e_hole ] ⇒ m
+  | [ Γ ⊢ e_app E' M' ] ⇒
+        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in
+        [ Γ ⊢ app M M' ]
+  | [ Γ ⊢ e_proj1 E' ] ⇒ 
+        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in 
+        [ Γ ⊢ proj1 M ]
+  | [ Γ ⊢ e_proj2 E' ] ⇒ 
+        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in 
+        [ Γ ⊢ proj2 M ]
+;
+
 
 %{
      (2) A path is any term of the form ε[x] or ε[c] ( for some variable x or constant c )
@@ -137,6 +187,7 @@ and tp_norm : tp → tp → type =
 %{----------------------------------------------------------------------------------------------
        Lemma 4.1 ( Determinacy )
              (1) If  Γ ⊢ p /\ A   and  Γ ⊢ p /\ B , then  A = B
+             (+) If  Γ ⊢ M \/ N1  and  Γ ⊢ M \/ N2 ,  then N1 = N2                   ( * this is not in the paper, but I think it's needed for (2)  )
              (2) If  Γ ⊢ M : A ⇒ N1  and  Γ ⊢ M : A ⇒ N2 , then N1 = N2
              (3) If Γ ⊢ p → p1 /\ A1  and  Γ ⊢ p → p2 /\  A2 , then  A1 = A2
              (4) If Γ ⊢ A ⇒ B1  and  Γ ⊢ A ⇒ B2 , then  B1 = B2
@@ -177,15 +228,57 @@ fn d ⇒ fn e ⇒ case d of
 ;
 
 
+% 4.1 (+)
+rec head_norm_det : ( Γ : tctx ) [ Γ ⊢ head_norm M N1 ] → [ Γ ⊢ head_norm M N2 ]
+                                        → [ Γ ⊢ tm_eq N1  N2 ] = 
+/ total d ( head_norm_det γ m n1 n2 d e  ) /
+fn d ⇒ fn e ⇒ case d of 
+  | [ Γ ⊢ hn_step HR HN ] ⇒ 
+        ( case e of 
+          | [ Γ ⊢ hn_step HR' HN' ] ⇒ 
+                ( case [ Γ ⊢ HR ] of
+                  | [ Γ ⊢ hr_app E1 E2 ] ⇒ 
+                        ( case [ Γ ⊢ HR' ] of
+                          | [ Γ ⊢ hr_app E1' E2' ] ⇒ ?
+                          | [ Γ ⊢ hr_proj1 E1' E2' ] ⇒ ?
+                          | [ Γ ⊢  hr_proj2 E1' E2' ] ⇒ ?
+                          | [ Γ ⊢ hr_path NT' E1' E2' ] ⇒ ?
+                        )
+
+                  | [ Γ ⊢ hr_proj1 E1 E2 ] ⇒ ?
+
+                  | [ Γ ⊢  hr_proj2 E1 E2 ] ⇒ ?
+
+                  | [ Γ ⊢ hr_path NT E1 E2 ] ⇒ ?
+                )
+
+          | [ Γ ⊢ hn_nostep ( \x. \h. F' ) ] ⇒ impossible [ _ ⊢ F' ]
+        )
+
+  | [ Γ ⊢ hn_nostep ( \x. \h. F ) ] ⇒ 
+        ( case e of 
+          | [ Γ ⊢ hn_step HR' HN' ] ⇒ impossible [ _ ⊢ F ]
+          | [ Γ ⊢ hn_nostep ( \x. \h. F' ) ] ⇒ 
+                [ Γ ⊢ tm_refl ]
+        )
+;
+
 % 4.1 (2)
 rec tm_norm_det : ( Γ : tctx ) [ Γ ⊢ tm_norm M A N1 ] → [ Γ ⊢ tm_norm M A N2 ]
                                     → [ Γ ⊢ tm_eq N1 N2 ] =
 / total d ( tm_norm_det γ m a n1 n2 d e ) /
 fn d ⇒ fn  e ⇒ case d of
   | [ Γ ⊢ tmn_base HN PN ] ⇒
-        let [ Γ ⊢ tmn_base HN' PN' ] = e in ?
+        let [ Γ ⊢ tmn_base HN' PN' ] = e in
+        let [ Γ ⊢ tm_refl ] = head_norm_det  [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in           % Use 4.1 (+)
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tm_refl ]
+
   | [ Γ ⊢ tmn_sing HN PN ] ⇒ 
-        let [ Γ ⊢ tmn_sing HN' PN' ] = e in ?
+        let [ Γ ⊢ tmn_sing HN' PN' ] = e in 
+        let [ Γ ⊢ tm_refl ] = head_norm_det  [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in            % Use 4.1 (+)
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tm_refl ]
 
   | [ Γ ⊢ tmn_pi TPN ( \x. \t. F ) ] ⇒ 
         let [ Γ ⊢ tmn_pi TPN' ( \x. \t. F' ) ] = e in 

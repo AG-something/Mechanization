@@ -56,7 +56,7 @@ LF tp : type =
                Well-typed terms                             Γ ⊢ M : A                            Γ ⊢ wt_tm M A
                Declarative equality of terms        Γ ⊢ M == N : A                   Γ ⊢ deq_tm M N A
 
-               Well-formed context                       Γ ⊢ ok                                 This we get for free!
+               Well-formed context                       Γ ⊢ ok                                 This we get for free?
 ----------------------------------------------------------------------------------------------}%
 % The judgments are defined by simultaneous induction
 
