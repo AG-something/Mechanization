@@ -1,5 +1,5 @@
 %{----------------------------------------------------------------------------------------------
-        Syntax and inference rules of a dependently-typed λ-calculus with unit types and subtyping
+        Algorithmic inference rules for normalization of terms and types
                Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 21-23.
 
                Author : Antoine Gaulin
@@ -7,99 +7,21 @@
 --------------------------------------------------------------------------------------------------
   This section introduces "algorithmic" inference rules to compute normal forms of terms and types
   These new rules define six additional judgments in the language, which depend on the notions of 'elimination contexts' and 'paths'
-      (1) An elimination is a series of applications to and projection from the context hole ( denoted <> )
+      (ε) An elimination is a series of applications to and projection from the context hole ( denoted <> )
             They are formally defined via the following syntax : 
                                            ε  ∷=  <>
                                                     | ε M
                                                     | π1 ε
                                                     | π2 ε
-          Given an elimination context ε, we write ε[M] to denote the term resuting from filling <> with M
+            Given an elimination context ε, we write ε[M] to denote the term resuting from filling <> with M
+
+      (p)  A path p is any term of the form ε[x] or ε[c]
+
+  **  They do this in the paper to get a concise paper proof (fewer head reduction rules to consider), but it's terrible to mechanize.
+         So, we will skip the elimination contexts completely and use more rules to define the head reduction judgment   (proven equivalent on paper)
+           *  Not sure that paths are that useful.
+               Seems like wherever they appear, one can prove that the terms involved are always paths anyway
 }%
-
-LF elim_ctx : type = 
-  | e_hole : elim_ctx
-  | e_app : elim_ctx → tm
-                   → elim_ctx
-  | e_proj1 : elim_ctx
-                      → elim_ctx
-  | e_proj2 : elim_ctx
-                      → elim_ctx
-;
-
-
-% To encode paths, we will first define a type to compute the term obtained from filling an elimination context
-%   *  "filled_ctx ε M N" is suppose to mean "ε[M] = N" ( i.e. they are exactly the same expression )
-LF filled_ctx : elim_ctx → tm → tm → type =
-  | f_hole : { M : tm } filled_ctx e_hole M M
-  | f_app : {  M' : tm } filled_ctx E M N
-                  → filled_ctx ( e_app E M' ) M ( app N M' )
-  | f_proj1 : filled_ctx E M N
-                     → filled_ctx ( e_proj1 E ) M ( proj1 N )
-  | f_proj2 : filled_ctx E M N
-                     → filled_ctx ( e_proj2 E ) M ( proj2 N )
-;
-
-% It will also be useful to have a function that fills the holes
-% In other words, we want to prove that for any ε and M, there is an N such that ε[M] = N
-% To do this, we need to skolemize as there are no existential quantifiers in Beluga
-LF exists_filled : type =
-  | filled : filled_ctx E M N → exists_filled
-;
-
-rec fill_hole_skolem : ( Γ : tctx ) [ Γ ⊢ elim_ctx ] → [ Γ ⊢ tm ] 
-                                         → [ Γ ⊢ exists_filled ] = 
-/ total e ( fill_hole_skolem _ e _ ) /
-fn e ⇒  fn m ⇒ let [ Γ ⊢ M ] = m in 
-               ( case e of
-                 | [ Γ ⊢ e_hole ] ⇒ 
-                       let [ Γ ⊢ F ] = [ Γ ⊢ f_hole M ] in
-                       [ Γ ⊢ filled F ]
-
-                 | [ Γ ⊢ e_app E' M' ] ⇒ 
-                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in 
-                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_app M' F ] in 
-                       [ Γ ⊢ filled F' ]
-
-                 | [ Γ ⊢ e_proj1 E' ] ⇒ 
-                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in
-                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_proj1 F ] in
-                       [ Γ ⊢ filled F' ]
-
-                 | [ Γ ⊢ e_proj2 E' ] ⇒ 
-                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in
-                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_proj2 F ] in
-                       [ Γ ⊢ filled F' ]
-               )
-;
-
-rec fill_hole : ( Γ : tctx ) [ Γ ⊢ elim_ctx ] → [ Γ ⊢ tm ]
-                         → [ Γ ⊢ tm ] =
-/ total e ( fill_hole γ e m ) /
-fn e ⇒ fn m ⇒ case e of
-  | [ Γ ⊢ e_hole ] ⇒ m
-  | [ Γ ⊢ e_app E' M' ] ⇒
-        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in
-        [ Γ ⊢ app M M' ]
-  | [ Γ ⊢ e_proj1 E' ] ⇒ 
-        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in 
-        [ Γ ⊢ proj1 M ]
-  | [ Γ ⊢ e_proj2 E' ] ⇒ 
-        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in 
-        [ Γ ⊢ proj2 M ]
-;
-
-
-%{
-     (2) A path is any term of the form ε[x] or ε[c] ( for some variable x or constant c )
-           * Note that if p is a path and ε is an elimination context, then ε[p] is also a path
-}%
-
-LF path : tm → type = 
-  | p_cons : filled_ctx E ( const n ) N
-                     → path N
-  | p_var : ( { x : tm } filled_ctx E x N )               % Is this necessary?  Does it even say what it should say?
-                  → path N
-;
 
 %{
   And now, we can define the judgments :
@@ -125,15 +47,20 @@ LF nat_tp : tm → tp → type =
 
 
 LF head_red : tm → tm → type = 
-  | hr_app : filled_ctx E ( app ( lam ( \x. M x ) ) M' ) N1 → filled_ctx E ( M M' ) N2
-                     → head_red N1 N2
-  | hr_proj1 : filled_ctx E ( proj1 ( pair M1 M2 ) ) N1 → filled_ctx E M1 N2
-                       → head_red N1 N2
-  | hr_proj2 : filled_ctx E ( proj2 ( pair M1 M2 ) ) N1 → filled_ctx E M2 N2
-                       → head_red N1 N2
-  | hr_path : nat_tp P ( sing M )
-                      → filled_ctx E P N1 → filled_ctx E N N2
-                      → head_red N1 N2
+  | hr_beta_lam : head_red ( app ( lam (\x. M x ) ) M' ) ( M M' )
+  | hr_beta_proj1 : head_red ( proj1 ( pair M M' ) ) M
+  | hr_beta_proj2 : head_red ( proj2 ( pair M M' ) ) M'
+
+  | hr_path : nat_tp p ( sing N )
+                      → head_red p N
+
+  % Added rules to compensate the absence of elimination contexts
+  | hr_app : head_red M M'
+                    → head_red ( app M M'') ( app M' M'' )
+  | hr_proj1 : head_red M M'
+                       → head_red ( proj1 M ) ( proj1 M' )
+  | hr_proj2 : head_red M M'
+                       → head_red ( proj2 M ) ( proj2 M' )
 ;
 
 
@@ -146,7 +73,7 @@ LF not_possible : type =
 LF head_norm : tm → tm → type =
   | hn_step : head_red M M' → head_norm M' N
                        → head_norm M N
-  | hn_nostep : ( { N : tm } head_red M N  → not_possible )     % This seems a bit fishy, no?
+  | hn_nostep : ( head_red M M'  → head_norm M N → not_possible )     % This seems a bit fishy, no?
                            → head_norm M M
 ;
 
@@ -228,31 +155,72 @@ fn d ⇒ fn e ⇒ case d of
 ;
 
 
+
 % 4.1 (+)
+%{ For this part, we need an addition lemma:
+         Lemma :  Γ ⊢ λx:A. M  → M'  is impossible.
+                          Γ ⊢ <M1, M2 > → M'  is impossible
+}%
+rec lam_nostep : ( Γ : tctx ) [ Γ ⊢ head_red ( lam ( \x. M ) ) M' ] 
+                                → [ Γ ⊢ not_possible ] =
+/ total d ( lam_nostep γ m m' d ) /
+fn d ⇒ case d of
+  | [ Γ ⊢ hr_path NT ] ⇒ impossible [ Γ ⊢ NT ]
+;
+
+rec pair_nostep : ( Γ : tctx ) [ Γ ⊢ head_red ( pair M1 M2 ) M' ]
+                                → [ Γ ⊢ not_possible ] =
+/ total d ( pair_nostep γ m1 m2 m' d ) /
+fn d ⇒ case d of
+  | [ Γ ⊢ hr_path NT ] ⇒ impossible [ Γ ⊢ NT ]
+;
+
 rec head_norm_det : ( Γ : tctx ) [ Γ ⊢ head_norm M N1 ] → [ Γ ⊢ head_norm M N2 ]
                                         → [ Γ ⊢ tm_eq N1  N2 ] = 
 / total d ( head_norm_det γ m n1 n2 d e  ) /
 fn d ⇒ fn e ⇒ case d of 
   | [ Γ ⊢ hn_step HR HN ] ⇒ 
-        ( case e of 
-          | [ Γ ⊢ hn_step HR' HN' ] ⇒ 
-                ( case [ Γ ⊢ HR ] of
-                  | [ Γ ⊢ hr_app E1 E2 ] ⇒ 
-                        ( case [ Γ ⊢ HR' ] of
-                          | [ Γ ⊢ hr_app E1' E2' ] ⇒ ?
-                          | [ Γ ⊢ hr_proj1 E1' E2' ] ⇒ ?
-                          | [ Γ ⊢  hr_proj2 E1' E2' ] ⇒ ?
-                          | [ Γ ⊢ hr_path NT' E1' E2' ] ⇒ ?
-                        )
+        ( case e of
+            | [ Γ ⊢ hn_step HR' HN' ] ⇒ 
+                  ( case [ Γ ⊢ HR ] of
+                      | [ Γ ⊢ hr_beta_lam ] ⇒ 
+                            ( case [ Γ ⊢ HR' ] of
+                              | [ Γ  ⊢ hr_beta_lam ] ⇒ 
+                                    let [ Γ ⊢ tm_refl ] = head_norm_det [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in 
+                                    [ Γ ⊢ tm_refl ]
+                              | [ Γ ⊢ hr_app HR2 ] ⇒ impossible lam_nostep [ Γ ⊢ HR2 ]
+                            )
 
-                  | [ Γ ⊢ hr_proj1 E1 E2 ] ⇒ ?
+                      | [ Γ ⊢ hr_beta_proj1 ] ⇒ 
+                            ( case [ Γ ⊢ HR' ] of
+                                | [ Γ ⊢ hr_beta_proj1 ] ⇒ 
+                                      let [ Γ ⊢ tm_refl ] = head_norm_det [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in
+                                      [ Γ ⊢  tm_refl ]
+                                | [ Γ ⊢ hr_path NT' ] ⇒ 
+                                      let [ Γ ⊢ nt_proj1  NT2 ] = [ Γ ⊢ NT' ] in 
+                                      impossible [ Γ ⊢ NT2 ]
+                                | [ Γ ⊢ hr_proj1 HR2 ] ⇒ 
+                                      impossible pair_nostep [ Γ ⊢ HR2 ]
+                            )
 
-                  | [ Γ ⊢  hr_proj2 E1 E2 ] ⇒ ?
+                      | [ Γ ⊢ hr_beta_proj2 ] ⇒ 
+                            ( case [ Γ ⊢ HR' ] of
+                              | [ Γ ⊢ hr_beta_proj2 ] ⇒ 
+                                    let [ Γ ⊢ tm_refl ] = head_norm_det [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in
+                                    [ Γ ⊢  tm_refl ]
+                              | [ Γ ⊢ hr_path NT' ] ⇒ 
+                                    impossible [ Γ ⊢ NT' ]
+                              | [ Γ ⊢ hr_proj2 HR2 ] ⇒ 
+                                    impossible pair_nostep [ Γ ⊢ HR2 ]
+                            )
 
-                  | [ Γ ⊢ hr_path NT E1 E2 ] ⇒ ?
-                )
+                      | [ Γ ⊢ hr_path NT ] ⇒ ?
+                      | [ Γ ⊢ hr_app HR1 ] ⇒ ?
+                      | [ Γ ⊢ hr_proj1 HR1 ] ⇒ ?
+                      | [ Γ ⊢ hr_proj2 HR1 ] ⇒ ?
+                  )
 
-          | [ Γ ⊢ hn_nostep ( \x. \h. F' ) ] ⇒ impossible [ _ ⊢ F' ]
+            | [ Γ ⊢ hn_nostep ( \x. \h. F' ) ] ⇒ impossible [ _ ⊢ F' ]
         )
 
   | [ Γ ⊢ hn_nostep ( \x. \h. F ) ] ⇒ 
@@ -263,22 +231,23 @@ fn d ⇒ fn e ⇒ case d of
         )
 ;
 
+
 % 4.1 (2)
 rec tm_norm_det : ( Γ : tctx ) [ Γ ⊢ tm_norm M A N1 ] → [ Γ ⊢ tm_norm M A N2 ]
                                     → [ Γ ⊢ tm_eq N1 N2 ] =
 / total d ( tm_norm_det γ m a n1 n2 d e ) /
 fn d ⇒ fn  e ⇒ case d of
   | [ Γ ⊢ tmn_base HN PN ] ⇒
-        let [ Γ ⊢ tmn_base HN' PN' ] = e in
-        let [ Γ ⊢ tm_refl ] = head_norm_det  [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in           % Use 4.1 (+)
-        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
-        [ Γ ⊢ tm_refl ]
+        let [ Γ ⊢ tmn_base HN' PN' ] = e in 
+        let [ Γ ⊢ tm_refl ] = head_norm_det [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in 
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in 
+        [  Γ ⊢ tm_refl ]
 
   | [ Γ ⊢ tmn_sing HN PN ] ⇒ 
         let [ Γ ⊢ tmn_sing HN' PN' ] = e in 
-        let [ Γ ⊢ tm_refl ] = head_norm_det  [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in            % Use 4.1 (+)
-        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
-        [ Γ ⊢ tm_refl ]
+        let [ Γ ⊢ tm_refl ] = head_norm_det [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in 
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in 
+        [  Γ ⊢ tm_refl ]
 
   | [ Γ ⊢ tmn_pi TPN ( \x. \t. F ) ] ⇒ 
         let [ Γ ⊢ tmn_pi TPN' ( \x. \t. F' ) ] = e in 
