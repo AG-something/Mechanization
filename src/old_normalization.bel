@@ -1,0 +1,405 @@
+%{----------------------------------------------------------------------------------------------
+        Syntax and inference rules of a dependently-typed λ-calculus with unit types and subtyping
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 21-23.
+
+               Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+  This section introduces "algorithmic" inference rules to compute normal forms of terms and types
+  These new rules define six additional judgments in the language, which depend on the notions of 'elimination contexts' and 'paths'
+      (1) An elimination is a series of applications to and projection from the context hole ( denoted <> )
+            They are formally defined via the following syntax : 
+                                           ε  ∷=  <>
+                                                    | ε M
+                                                    | π1 ε
+                                                    | π2 ε
+          Given an elimination context ε, we write ε[M] to denote the term resuting from filling <> with M
+}%
+
+LF elim_ctx : ( tm → tm ) → type =
+  | e_hole : elim_ctx ( \x. x )
+  | e_app : elim_ctx E
+                   → elim_ctx ( \x. app ( E x ) M )
+  | e_proj1 : elim_ctx E 
+                      → elim_ctx ( \x. proj1 ( E x ) )
+  | e_proj2 : elim_ctx E
+                      → elim_ctx ( \x. proj2 ( E x ) )
+;
+
+
+LF elim_ctx_bad : type = 
+  | e_hole : elim_ctx_bad
+  | e_app : elim_ctx_bad → tm
+                   → elim_ctx_bad
+  | e_proj1 : elim_ctx_bad
+                      → elim_ctx_bad
+  | e_proj2 : elim_ctx_bad
+                      → elim_ctx_bad
+;
+
+
+% To encode paths, we will first define a type to compute the term obtained from filling an elimination context
+%   *  "filled_ctx ε M N" is suppose to mean "ε[M] = N" ( i.e. they are exactly the same expression )
+LF filled_ctx : elim_ctx_bad → tm → tm → type =
+  | f_hole : { M : tm } filled_ctx e_hole M M
+  | f_app : {  M' : tm } filled_ctx E M N
+                  → filled_ctx ( e_app E M' ) M ( app N M' )
+  | f_proj1 : filled_ctx E M N
+                     → filled_ctx ( e_proj1 E ) M ( proj1 N )
+  | f_proj2 : filled_ctx E M N
+                     → filled_ctx ( e_proj2 E ) M ( proj2 N )
+;
+
+% It will also be useful to have a function that fills the holes
+% In other words, we want to prove that for any ε and M, there is an N such that ε[M] = N
+% To do this, we need to skolemize as there are no existential quantifiers in Beluga
+LF exists_filled : type =
+  | filled : filled_ctx E M N → exists_filled
+;
+
+rec fill_hole_skolem : ( Γ : tctx ) [ Γ ⊢ elim_ctx_bad ] → [ Γ ⊢ tm ] 
+                                         → [ Γ ⊢ exists_filled ] = 
+/ total e ( fill_hole_skolem _ e _ ) /
+fn e ⇒  fn m ⇒ let [ Γ ⊢ M ] = m in 
+               ( case e of
+                 | [ Γ ⊢ e_hole ] ⇒ 
+                       let [ Γ ⊢ F ] = [ Γ ⊢ f_hole M ] in
+                       [ Γ ⊢ filled F ]
+
+                 | [ Γ ⊢ e_app E' M' ] ⇒ 
+                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in 
+                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_app M' F ] in 
+                       [ Γ ⊢ filled F' ]
+
+                 | [ Γ ⊢ e_proj1 E' ] ⇒ 
+                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in
+                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_proj1 F ] in
+                       [ Γ ⊢ filled F' ]
+
+                 | [ Γ ⊢ e_proj2 E' ] ⇒ 
+                       let [ Γ ⊢ filled F ] = fill_hole_skolem [ Γ ⊢ E' ] [ Γ ⊢ M ] in
+                       let [ Γ ⊢ F' ] = [ Γ ⊢ f_proj2 F ] in
+                       [ Γ ⊢ filled F' ]
+               )
+;
+
+rec fill_hole : ( Γ : tctx ) [ Γ ⊢ elim_ctx_bad ] → [ Γ ⊢ tm ]
+                         → [ Γ ⊢ tm ] =
+/ total e ( fill_hole γ e m ) /
+fn e ⇒ fn m ⇒ case e of
+  | [ Γ ⊢ e_hole ] ⇒ m
+  | [ Γ ⊢ e_app E' M' ] ⇒
+        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in
+        [ Γ ⊢ app M M' ]
+  | [ Γ ⊢ e_proj1 E' ] ⇒ 
+        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in 
+        [ Γ ⊢ proj1 M ]
+  | [ Γ ⊢ e_proj2 E' ] ⇒ 
+        let [ Γ ⊢ M ] = fill_hole [ Γ ⊢ E' ] m in 
+        [ Γ ⊢ proj2 M ]
+;
+
+
+%{
+     (2) A path is any term of the form ε[x] or ε[c] ( for some variable x or constant c )
+           * Note that if p is a path and ε is an elimination context, then ε[p] is also a path
+}%
+
+LF path : tm → type = 
+  | p_cons : filled_ctx E ( const n ) N
+                     → path N
+  | p_var : ( { x : tm } filled_ctx E x N )               % Is this necessary?  Does it even say what it should say?
+                  → path N
+;
+
+%{
+  And now, we can define the judgments :
+     (1)    Γ ⊢ p /\ A                 Path p has natural type A                                           *  /\ represents an upward arrow
+     (2)    Γ ⊢ M ~> M'            Term M head reduces to term M'
+     (3)    Γ ⊢ M \/ N               Term M has head normal form N                                * \/ represents a downward arrow
+     (4)    Γ ⊢ M : A ⇒ M'       Term M has normal form M' at type A
+     (5)    Γ ⊢ p → p' /\ A        Path p has normal form p' at natural type A
+     (6)    Γ ⊢ A ⇒ B                Type A has normal form B
+  
+   * These are algorithmic in the sense that the judgment " Γ ⊢ E # E'  ", where # is one of the arrows, 
+       can be interpreted as computing E' given Γ and E as inputs
+----------------------------------------------------------------------------------------------}%
+LF nat_tp : tm → tp → type =
+  | nt_const : nat_tp ( const n ) base
+  | nt_app : nat_tp P ( pi A B )
+                     → nat_tp ( app P M ) ( B M )
+  | nt_proj1 : nat_tp P ( sigma A B )
+                       → nat_tp ( proj1 P ) A
+  | nt_proj2 : nat_tp P ( sigma A B ) 
+                       → nat_tp ( proj2 P ) ( B ( proj1 P ) )
+;
+
+
+
+LF head_red : tm → tm → type = 
+  | hr_app : filled_ctx E ( app ( lam ( \x. M x ) ) M' ) N1 → filled_ctx E ( M M' ) N2
+                     → head_red N1 N2
+  | hr_proj1 : filled_ctx E ( proj1 ( pair M1 M2 ) ) N1 → filled_ctx E M1 N2
+                       → head_red N1 N2
+  | hr_proj2 : filled_ctx E ( proj2 ( pair M1 M2 ) ) N1 → filled_ctx E M2 N2
+                       → head_red N1 N2
+  | hr_path : nat_tp P ( sing M )
+                      → filled_ctx E P N1 → filled_ctx E N N2
+                      → head_red N1 N2
+;
+
+
+% To encode head normal form, we need to formalize the notion that a term M does not step further
+% For this, we use an empty type
+%  *  Not really sure that this is the way
+LF not_possible : type =
+;
+
+LF head_norm : tm → tm → type =
+  | hn_step : head_red M M' → head_norm M' N
+                       → head_norm M N
+  | hn_nostep : ( { N : tm } head_red M N  → not_possible )     % This seems a bit fishy, no?
+                           → head_norm M M
+;
+
+
+LF tm_norm : tm → tp → tm → type =
+  | tmn_base : head_norm M M' → path_norm M' M'' base
+                         → tm_norm M base M''
+  | tmn_sing : head_norm M M' → path_norm M' M'' base
+                        → tm_norm M ( sing N ) M''                            % Shouldn't the term N appear in the premisses as well?  
+  | tmn_pi : tp_norm A B →  ( { x : tm } { t : wt_tm x A } tm_norm ( app M x ) ( A' x ) ( N x ) )
+                     → tm_norm M ( pi A A' ) ( lam N )
+  | tmn_sigma : tm_norm ( proj1 M ) A N → tm_norm ( proj2 M ) ( B ( proj1 M ) ) N'
+                            → tm_norm M ( sigma A B ) ( pair N N' )
+
+
+and path_norm : tm → tm → tp → type =
+  | pn_const : path_norm ( const n ) ( const n ) base
+%  | pn_var : { x : tm } wt_tm x A                                           % Is this necessary?
+%                    → path_norm x x A
+  | pn_app : path_norm p p' ( pi A B ) → tm_norm M  A M'
+                      → path_norm ( app p M  ) ( app p' M' ) ( B M )
+  | pn_proj1 : path_norm p p' ( sigma A B )
+                        → path_norm ( proj1 p ) ( proj1 p' ) A
+  | pn_proj2 : path_norm p p' ( sigma A B )
+                        → path_norm ( proj2 p ) ( proj2 p' ) ( B ( proj1 p ) )
+
+and tp_norm : tp → tp → type = 
+  | tpn_base : tp_norm base base
+  | tpn_sing : tm_norm M base M'
+                       → tp_norm ( sing M ) ( sing M'  )
+  | tpn_pi : tp_norm A A' → ( { x : tm }  wt_tm x A →  tp_norm ( B x ) ( B' x ) )
+                    → tp_norm ( pi A B ) ( pi A' B' )
+  | tpn_sigma : tp_norm A A' → ( { x : tm } wt_tm x A → tp_norm ( B x ) ( B' x ) )
+                           → tp_norm ( sigma A B ) ( sigma A' B' )
+;
+
+
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.1 ( Determinacy )
+             (1) If  Γ ⊢ p /\ A   and  Γ ⊢ p /\ B , then  A = B
+             (+) If  Γ ⊢ M \/ N1  and  Γ ⊢ M \/ N2 ,  then N1 = N2                   ( * this is not in the paper, but I think it's needed for (2)  )
+             (2) If  Γ ⊢ M : A ⇒ N1  and  Γ ⊢ M : A ⇒ N2 , then N1 = N2
+             (3) If Γ ⊢ p → p1 /\ A1  and  Γ ⊢ p → p2 /\  A2 , then  A1 = A2
+             (4) If Γ ⊢ A ⇒ B1  and  Γ ⊢ A ⇒ B2 , then  B1 = B2
+
+        * What notion of equality is used in this?
+            I think it's just defined by reflexivity ( up to renaming of bound variables )
+----------------------------------------------------------------------------------------------}%
+LF tm_eq  : tm → tm → type =
+  | tm_refl : tm_eq M M
+;
+
+LF tp_eq  : tp → tp → type =
+  | tp_refl : tp_eq A A
+;
+
+% 4.1 (1)
+rec nat_tp_det : ( Γ : tctx ) [ Γ ⊢ nat_tp p A ] → [ Γ ⊢ nat_tp p B ]
+                               → [ Γ ⊢ tp_eq A B ] =
+/ total d ( nat_tp_det γ p a b d e ) /
+fn d ⇒ fn e ⇒ case d of
+  | [ Γ ⊢ nt_const ] ⇒ 
+        let [ Γ ⊢ nt_const ] = e in 
+        [ Γ ⊢ tp_refl ]
+
+  | [ Γ ⊢ nt_app NT ] ⇒ 
+        let [ Γ ⊢ nt_app NT' ] = e in 
+        let [ Γ ⊢ tp_refl ] = nat_tp_det [ Γ ⊢ NT ] [ Γ ⊢ NT' ] in 
+        [ Γ ⊢ tp_refl ]
+
+  | [ Γ ⊢ nt_proj1 NT ] ⇒ 
+        let [ Γ ⊢ nt_proj1 NT' ] = e in 
+        let [ Γ ⊢ tp_refl ] = nat_tp_det [ Γ ⊢ NT ] [ Γ ⊢ NT' ] in 
+        [ Γ ⊢ tp_refl ]
+  | [ Γ ⊢ nt_proj2 NT ] ⇒
+        let [ Γ ⊢ nt_proj2 NT' ] = e in 
+        let [ Γ ⊢ tp_refl ] = nat_tp_det [ Γ ⊢ NT ] [ Γ ⊢ NT' ] in 
+        [ Γ ⊢ tp_refl ]
+;
+
+
+% 4.1 (+)
+rec head_norm_det : ( Γ : tctx ) [ Γ ⊢ head_norm M N1 ] → [ Γ ⊢ head_norm M N2 ]
+                                        → [ Γ ⊢ tm_eq N1  N2 ] = 
+/ total d ( head_norm_det γ m n1 n2 d e  ) /
+fn d ⇒ fn e ⇒ case d of 
+  | [ Γ ⊢ hn_step HR HN ] ⇒ 
+        ( case e of 
+          | [ Γ ⊢ hn_step HR' HN' ] ⇒ 
+                ( case [ Γ ⊢ HR ] of
+                  | [ Γ ⊢ hr_app E1 E2 ] ⇒ 
+                        ( case [ Γ ⊢ HR' ] of
+                          | [ Γ ⊢ hr_app E1' E2' ] ⇒ ?
+                          | [ Γ ⊢ hr_proj1 E1' E2' ] ⇒ ?
+                          | [ Γ ⊢  hr_proj2 E1' E2' ] ⇒ ?
+                          | [ Γ ⊢ hr_path NT' E1' E2' ] ⇒ ?
+                        )
+
+                  | [ Γ ⊢ hr_proj1 E1 E2 ] ⇒ ?
+
+                  | [ Γ ⊢  hr_proj2 E1 E2 ] ⇒ ?
+
+                  | [ Γ ⊢ hr_path NT E1 E2 ] ⇒ ?
+                )
+
+          | [ Γ ⊢ hn_nostep ( \x. \h. F' ) ] ⇒ impossible [ _ ⊢ F' ]
+        )
+
+  | [ Γ ⊢ hn_nostep ( \x. \h. F ) ] ⇒ 
+        ( case e of 
+          | [ Γ ⊢ hn_step HR' HN' ] ⇒ impossible [ _ ⊢ F ]
+          | [ Γ ⊢ hn_nostep ( \x. \h. F' ) ] ⇒ 
+                [ Γ ⊢ tm_refl ]
+        )
+;
+
+% 4.1 (2)
+rec tm_norm_det : ( Γ : tctx ) [ Γ ⊢ tm_norm M A N1 ] → [ Γ ⊢ tm_norm M A N2 ]
+                                    → [ Γ ⊢ tm_eq N1 N2 ] =
+/ total d ( tm_norm_det γ m a n1 n2 d e ) /
+fn d ⇒ fn  e ⇒ case d of
+  | [ Γ ⊢ tmn_base HN PN ] ⇒
+        let [ Γ ⊢ tmn_base HN' PN' ] = e in
+        let [ Γ ⊢ tm_refl ] = head_norm_det  [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in           % Use 4.1 (+)
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tm_refl ]
+
+  | [ Γ ⊢ tmn_sing HN PN ] ⇒ 
+        let [ Γ ⊢ tmn_sing HN' PN' ] = e in 
+        let [ Γ ⊢ tm_refl ] = head_norm_det  [ Γ ⊢ HN ] [ Γ ⊢ HN' ] in            % Use 4.1 (+)
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tm_refl ]
+
+  | [ Γ ⊢ tmn_pi TPN ( \x. \t. F ) ] ⇒ 
+        let [ Γ ⊢ tmn_pi TPN' ( \x. \t. F' ) ] = e in 
+        let [ Γ , b : block ( x : tm , t : wt_tm x A ) ⊢ tm_refl ] = tm_norm_det [ Γ , b : block ( x : tm , t :  wt_tm x _ ) ⊢ F[.. , b.1 , b.2 ] ]
+                                                                                                                                    [ Γ , b : block ( x : tm , t :  wt_tm x _ ) ⊢ F'[.. , b.1 , b.2 ] ] in
+        [ Γ ⊢ tm_refl ]
+
+  | [ Γ ⊢ tmn_sigma TMN1 TMN2 ] ⇒ 
+        let [ Γ ⊢ tmn_sigma TMN1' TMN2' ] = e in
+        let [ Γ ⊢ tm_refl ] = tm_norm_det [ Γ ⊢ TMN1 ] [ Γ ⊢ TMN1' ] in
+        let [ Γ ⊢ tm_refl ] = tm_norm_det [ Γ ⊢ TMN2 ] [ Γ ⊢ TMN2' ] in
+        [ Γ ⊢ tm_refl ]
+
+
+and
+% 4.1 (3)  ( term equality part )
+rec path_norm_det1 : ( Γ : tctx ) [ Γ ⊢ path_norm p p1 A1 ] → [ Γ ⊢ path_norm p p2 A2 ]
+                                         → [ Γ ⊢ tm_eq p1 p2 ] =
+/ total d ( path_norm_det1 γ p p1 a1 p2 a2 d e ) /
+fn d ⇒ fn e ⇒ case d of
+  | [ Γ ⊢ pn_const ] ⇒ 
+        let [ Γ ⊢ pn_const ] = e in
+        [ Γ ⊢ tm_refl ]
+
+  | [ Γ ⊢ pn_app PN TMN ] ⇒
+        let [ Γ ⊢ pn_app PN' TMN' ] = e in
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        let [ Γ ⊢ tp_refl ] = path_norm_det2 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        let [ Γ ⊢ tm_refl ] = tm_norm_det [ Γ ⊢ TMN ] [ Γ ⊢ TMN' ] in
+        [ Γ ⊢ tm_refl ]
+
+  | [ Γ ⊢ pn_proj1 PN ] ⇒
+        let [ Γ ⊢ pn_proj1 PN' ] = e in 
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tm_refl ]
+
+  | [ Γ ⊢ pn_proj2 PN ]  ⇒
+        let [ Γ ⊢ pn_proj2 PN' ] = e in 
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tm_refl ]
+
+
+and
+% 4.1 (3)  ( type equality part )
+rec path_norm_det2 : ( Γ : tctx ) [ Γ ⊢ path_norm p p1 A1 ] → [ Γ ⊢ path_norm p p2 A2 ]
+                                         → [ Γ ⊢ tp_eq A1 A2 ] =
+/ total d ( path_norm_det2 γ p p1 a1 p2 a2 d e ) /
+fn d ⇒ fn e ⇒  case d of
+  | [ Γ ⊢ pn_const ] ⇒ 
+        let [ Γ ⊢ pn_const ] = e in
+        [ Γ ⊢ tp_refl ]
+
+  | [ Γ ⊢ pn_app PN  TMN ] ⇒
+        let [ Γ ⊢ pn_app PN' TMN' ] = e in 
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        let [ Γ ⊢ tp_refl ] = path_norm_det2 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        let [ Γ ⊢ tm_refl ] = tm_norm_det [ Γ ⊢ TMN ] [ Γ ⊢ TMN' ] in
+        [ Γ ⊢ tp_refl ]
+
+  | [ Γ ⊢ pn_proj1 PN ] ⇒
+        let [ Γ ⊢ pn_proj1 PN' ] = e in 
+        let [ Γ ⊢ tp_refl ] = path_norm_det2 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tp_refl ]
+
+  | [ Γ ⊢ pn_proj2 PN ]  ⇒
+        let [ Γ ⊢ pn_proj2 PN' ] = e in 
+        let [ Γ ⊢ tp_refl ] = path_norm_det2 [ Γ ⊢ PN ] [ Γ ⊢ PN' ] in
+        [ Γ ⊢ tp_refl ]
+;
+
+% 4.1 (4)
+rec tp_norm_det : ( Γ : tctx ) [ Γ ⊢ tp_norm A B1 ] → [ Γ ⊢ tp_norm A B2 ] 
+                                   → [ Γ ⊢ tp_eq B1 B2 ] =
+/ total d ( tp_norm_det γ a b1 b2 d e ) /
+fn d ⇒ fn e ⇒ case d of
+  | [ Γ ⊢ tpn_base ] ⇒ 
+        let [ Γ ⊢ tpn_base ] = e in 
+        [ Γ ⊢ tp_refl ]
+
+  | [ Γ ⊢ tpn_sing TMN ] ⇒ 
+        let [ Γ ⊢ tpn_sing TMN' ] = e in
+        let [ Γ ⊢ tm_refl ] = tm_norm_det [ Γ ⊢ TMN ] [ Γ ⊢ TMN' ] in
+        [ Γ ⊢ tp_refl ]
+
+  | [ Γ ⊢ tpn_pi TPN ( \x. \t. F ) ] ⇒
+        let [ Γ ⊢ tpn_pi TPN' ( \x. \t. F' ) ] = e in 
+        let [ Γ ⊢ tp_refl ] = tp_norm_det [ Γ ⊢ TPN ] [ Γ ⊢ TPN' ] in 
+        let [ Γ , b : block ( x : tm , t : wt_tm x A ) ⊢ tp_refl ] = tp_norm_det [ Γ , b : block ( x : tm , t : wt_tm x _ ) ⊢ F[.. , b.1 , b.2 ] ] 
+                                                                                                                                   [ Γ , b : block ( x : tm , t : wt_tm x _ ) ⊢ F'[.. , b.1 , b.2 ] ] in
+        [ Γ ⊢ tp_refl ]
+
+
+  | [ Γ ⊢ tpn_sigma TPN ( \x. \t. F ) ] ⇒ 
+        let [ Γ ⊢ tpn_sigma TPN' ( \x. \t. F' ) ] = e in 
+        let [ Γ ⊢ tp_refl ] = tp_norm_det [ Γ ⊢ TPN ] [ Γ ⊢ TPN' ] in
+        let [ Γ , b : block  ( x : tm , t : wt_tm x A ) ⊢ tp_refl ] = tp_norm_det [ Γ , b : block ( x : tm , t : wt_tm x _ ) ⊢ F[.. , b.1 , b.2 ] ] 
+                                                                                                                                   [ Γ , b : block ( x : tm , t : wt_tm x _ ) ⊢ F'[.. , b.1 , b.2 ] ] in
+        [ Γ ⊢ tp_refl ]
+;
+
+
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.10 ( Algorithmic Weakening )
+             (1) If  Γ ⊢ M ~> N  and  Γ' > Γ , then  Γ' ⊢ M ~> N
+             (2) If  Γ ⊢ M /\ A  and  Γ' > Γ , then  Γ' ⊢ M /\ A
+             (3) If  Γ ⊢ M \/ p  and  Γ' > Γ , then  Γ' ⊢ M \/ p
+             (4) If  Γ ⊢ M → A /\ N  and  Γ' > Γ , then  Γ' ⊢ M → A /\ N
+             (5) If  Γ ⊢ M : A ⇒ N  and  Γ' > Γ , then  Γ' ⊢ M : A ⇒ N
+             (6) If  Γ ⊢ A ⇒ B  and  Γ' > Γ , then  Γ' ⊢ A ⇒ B
+
+       *  I don't think I have to prove this explictly since substitutions are already handled by Beluga
+----------------------------------------------------------------------------------------------}%

@@ -31,15 +31,15 @@ LF nat : type =
 % Terms
 LF tm : type = 
   | const : nat → tm
-  | lam : ( tm → tm ) → tm
+  | lam : tp → ( tm → tm ) → tm
   | app : tm → tm → tm
   | pair : tm → tm → tm
   | proj1 : tm → tm
   | proj2 : tm → tm
-;
 
+and
 % Types
-LF tp : type =
+tp : type =
   | base : tp
   | sing : tm → tp
   | pi : tp → ( tm → tp ) → tp
@@ -109,7 +109,7 @@ and wt_tm : tm → tp → type =
 
   % Rules for functions / Π-types
   | wt_lam : ( { x : tm } wt_tm x A → wt_tm ( M x ) ( B x ) )
-                     → wt_tm ( lam M ) ( pi A B )
+                     → wt_tm ( lam A M ) ( pi A B )
   | wt_app : wt_tm M ( pi A B )
                       → wt_tm N A
                       → wt_tm ( app M N ) ( B M )
@@ -149,8 +149,8 @@ and deq_tm : tm → tm → tp → type =
                           → deq_tm M1 M3 A
 
   % Rules for functions / Π-types
-  | deq_lam : ( { x : tm } wt_tm x A → deq_tm ( M x ) ( N x ) ( B x ) )    % This might be wrong, different from the paper
-                        → deq_tm ( lam M ) ( lam N ) ( pi A B )
+  | deq_lam : deq_tp A A' → ( { x : tm } wt_tm x A → deq_tm ( M x ) ( N x ) ( B x ) )
+                        → deq_tm ( lam A M ) ( lam A' N ) ( pi A B )
   | deq_app : deq_tm M1 N1 ( pi A B )
                         → deq_tm M2 N2 A
                         → deq_tm ( app M1 M2 ) ( app N1 N2 ) ( B M1 )
@@ -184,4 +184,5 @@ and deq_tm : tm → tm → tp → type =
 
 
 % And finally, we can define typing contexts : 
-schema tctx = some [ t : tp ] block ( x : tm , t_x : wt_tm x t );
+schema tctx = some [ t : tp ] block ( x : tm , A : tp , t : wt_tm x A );
+schema tctx_old = some [ t : tp ] block ( x : tm , t_x : wt_tm x t );
