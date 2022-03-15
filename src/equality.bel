@@ -1,0 +1,58 @@
+%{----------------------------------------------------------------------------------------------
+        Reflexive equality of terms and types
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.     (Not in paper)
+
+               Author : Antoine Gaulin
+
+------------------------------------------------------------------------------------------------}%
+LF tm_eq : tm → tm → type =
+  | tm_refl : tm_eq M M
+;
+
+rec tm_eq_sym : ( Γ : tctx ) [ Γ ⊢ tm_eq M1 M2 ] → [ Γ ⊢ tm_eq  M2 M1 ] =
+/ total eq ( tm_eq_sym γ m1 m2 eq ) /
+fn EQ ⇒ let [ Γ ⊢ tm_refl ] = EQ in [ Γ ⊢ tm_refl ]
+;
+
+rec tm_eq_trans : ( Γ : tctx ) [ Γ ⊢ tm_eq M1 M2 ] → [ Γ ⊢ tm_eq M2 M3 ]
+                  → [ Γ ⊢ tm_eq M1 M3 ] =
+/ total eq1 ( tm_eq_trans γ m1 m2 m3 eq1 eq2 ) /
+fn EQ1, EQ2 ⇒ 
+            let [ Γ ⊢ tm_refl ] = EQ1 in
+            let [ Γ ⊢ tm_refl ] = EQ2 in 
+            [ Γ ⊢ tm_refl ]
+;
+            
+
+rec tm_eq_app1 : ( Γ : tctx ) [ Γ ⊢ tm_eq ( app M1 M2 ) ( app N1 N2 ) ] 
+                → [ Γ ⊢ tm_eq M1 N1 ] =
+/ total eq ( tm_eq_app1 γ m1 m2 n1 n2 eq ) /
+fn EQ ⇒
+    let [ Γ ⊢ tm_refl ] = EQ in 
+    [ Γ ⊢ tm_refl ]
+;
+
+rec tm_eq_app2 : ( Γ : tctx ) [ Γ ⊢ tm_eq ( app M1 M2 ) ( app N1 N2 ) ] 
+                → [ Γ ⊢ tm_eq M2 N2 ] =
+/ total eq ( tm_eq_app2 γ m1 m2 n1 n2 eq ) /
+fn EQ ⇒
+    let [ Γ ⊢ tm_refl ] = EQ in 
+    [ Γ ⊢ tm_refl ]
+;
+
+rec tm_eq_proj1 : ( Γ : tctx ) [ Γ ⊢ tm_eq ( proj1 M1 ) ( proj1 M2 ) ]
+                  → [ Γ ⊢ tm_eq M1 M2 ] =
+/ total eq ( tm_eq_proj1 γ m1 m2 eq ) /
+fn EQ ⇒ 
+    let [ Γ ⊢ tm_refl ] = EQ in
+    [ Γ ⊢ tm_refl ]
+;
+
+
+rec tm_eq_proj2 : ( Γ : tctx ) [ Γ ⊢ tm_eq ( proj2 M1 ) ( proj2 M2 ) ]
+                  → [ Γ ⊢ tm_eq M1 M2 ] =
+/ total eq ( tm_eq_proj2 γ m1 m2 eq ) /
+fn EQ ⇒ 
+    let [ Γ ⊢ tm_refl ] = EQ in
+    [ Γ ⊢ tm_refl ]
+;

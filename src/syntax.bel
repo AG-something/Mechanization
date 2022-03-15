@@ -6,11 +6,11 @@
 
 --------------------------------------------------------------------------------------------------
   Syntax of expressions
-     Typing Contexts    Γ, Δ ∷=   ε                  Empty context
+     Typing Contexts    Γ, Δ ∷=   .                   Empty context
                                                    | Γ, x:A          Context extension
 
-     Types                      A, B ∷=   b                  Base type 
-                                                   | S(M)            Singleton type
+     Types                      A, B ∷=   b                   Base type 
+                                                   | S(M)             Singleton type
 		                         	   | S_A(M)        Labelled singleton type  (admissible)
                 				   | Πx:A. A'      Dependent function type
 		                    		   | Σx:A. A'       Dependent pair type
@@ -22,7 +22,7 @@
 				                   | <M, M'>        Pairs
 				                   | π_i(M)           Projections
 ----------------------------------------------------------------------------------------------}%
-% We will need natural numbers to index the constants
+% Natural numbers (to index the constants)
 LF nat : type = 
   | zero : nat
   | succ : nat → nat
@@ -64,122 +64,122 @@ tp : type =
 LF wf_tp : tp → type =
   | wf_base : wf_tp base
   | wf_sing : wt_tm M base 
-                     → wf_tp ( sing M )
+              → wf_tp ( sing M )
   | wf_pi : ( { x : tm } wt_tm x A → wf_tp ( B x ) ) 
-                  → wf_tp ( pi A B )
-  | wf_sigma :  ( { x : tm } wt_tm x A → wf_tp ( B x ) ) 
-                          → wf_tp ( sigma A B )
+            → wf_tp ( pi A B )
+  | wf_sigma : ( { x : tm } wt_tm x A → wf_tp ( B x ) ) 
+                → wf_tp ( sigma A B )
 
 
 % Subtypes
 and sub_tp : tp → tp → type =
   | sub_base : sub_tp base base
   | sub_sing_base : wt_tm M base
-                                  → sub_tp ( sing M ) base
+                    → sub_tp ( sing M ) base
   | sub_sing_eq : deq_tm M N base 
-                              → sub_tp ( sing M ) ( sing N )
+                  → sub_tp ( sing M ) ( sing N )
   | sub_pi : wf_tp ( pi A1 B1 ) 
-                    → sub_tp A2 A1 
-                    → ( { x : tm } wt_tm x A2 → sub_tp ( B1 x ) ( B2 x ) )
-                    → sub_tp ( pi A1 B1 ) ( pi A2 B2 )
+             → sub_tp A2 A1 
+             → ( { x : tm } wt_tm x A2 → sub_tp ( B1 x ) ( B2 x ) )
+             → sub_tp ( pi A1 B1 ) ( pi A2 B2 )
   | sub_sigma : wf_tp ( sigma A1 B1 )
-                           → sub_tp A1 A2
-                           → ( { x : tm } wt_tm x A1 → sub_tp ( B1 x ) ( B2 x ) )
-                           → sub_tp ( sigma A1 B1 ) ( sigma A2 B2 )
+                → sub_tp A1 A2
+                → ( { x : tm } wt_tm x A1 → sub_tp ( B1 x ) ( B2 x ) )
+                → sub_tp ( sigma A1 B1 ) ( sigma A2 B2 )
 
 
 % Declarative equality of types
 and deq_tp : tp → tp → type =
   | deq_base : deq_tp base base 
   | deq_sing : deq_tm M N base
-                        → deq_tp ( sing M ) ( sing N )
+               → deq_tp ( sing M ) ( sing N )
   | deq_pi : deq_tp A1 A2
-                    → ( { x : tm } wt_tm x A1 → deq_tp ( B1 x ) ( B2 x ) )
-                    → deq_tp ( pi A1 B1 ) ( pi A2 B2 )
+             → ( { x : tm } wt_tm x A1 → deq_tp ( B1 x ) ( B2 x ) )
+             → deq_tp ( pi A1 B1 ) ( pi A2 B2 )
   | deq_sigma : deq_tp A1 A2
-                    → ( { x : tm } wt_tm x A1 → deq_tp ( B1 x ) ( B2 x ) )
-                    → deq_tp ( sigma A1 B1 ) ( sigma A2 B2 )
+                → ( { x : tm } wt_tm x A1 → deq_tp ( B1 x ) ( B2 x ) )
+                → deq_tp ( sigma A1 B1 ) ( sigma A2 B2 )
 
 
 % Well-typed terms
 and wt_tm : tm → tp → type =
   | wt_const : { n : nat } wt_tm ( const n ) base
   | wt_sing : wt_tm M base
-                      → wt_tm M ( sing M )
+              → wt_tm M ( sing M )
 
   % Rules for functions / Π-types
   | wt_lam : ( { x : tm } wt_tm x A → wt_tm ( M x ) ( B x ) )
-                     → wt_tm ( lam A M ) ( pi A B )
+             → wt_tm ( lam A M ) ( pi A B )
   | wt_app : wt_tm M ( pi A B )
-                      → wt_tm N A
-                      → wt_tm ( app M N ) ( B M )
+             → wt_tm N A
+             → wt_tm ( app M N ) ( B M )
   | wt_pi : ( { x : tm } wt_tm x A → wt_tm ( app M x ) ( B x ) )
-                  → wt_tm M ( pi A C ) 
-                  → wf_tp ( pi A C )
-                  → wt_tm M ( pi A B )
-
+            → wt_tm M ( pi A C ) 
+            → wf_tp ( pi A C )
+            → wt_tm M ( pi A B )
+                    
   % Rules for pairs / Σ-types
   | wt_pair : wf_tp ( sigma A B )
-                      → wt_tm M A
-                      → wt_tm N ( B M )
-                      → wt_tm ( pair M N ) ( sigma A B )
+              → wt_tm M A
+              → wt_tm N ( B M )
+              → wt_tm ( pair M N ) ( sigma A B )
   | wt_proj1 : wt_tm M ( sigma A B )
-                        → wt_tm ( proj1 M ) A
+               → wt_tm ( proj1 M ) A
   | wt_proj2 : wt_tm M ( sigma A B )
-                        → wt_tm ( proj2 M ) ( B M )
+               → wt_tm ( proj2 M ) ( B (proj1 M ) )
   | wt_sigma : wf_tp ( sigma A B )
-                         → wt_tm ( proj1 M ) A
-                         → wt_tm ( proj2 M ) ( B ( proj1 M ) )
-                         → wt_tm M ( sigma A B )
+               → wt_tm ( proj1 M ) A
+               → wt_tm ( proj2 M ) ( B ( proj1 M ) )
+               → wt_tm M ( sigma A B )
 
   % Subtypes
   | wt_sub : wt_tm M A
-                     → sub_tp A B
-                     → wt_tm M B
+             → sub_tp A B
+             → wt_tm M B
 
 % Declarative equality of terms
 and deq_tm : tm → tm → tp → type =
   % Axioms of equivalence
   | deq_refl : wt_tm M A 
-                       → deq_tm M M A
+               → deq_tm M M A
   | deq_sym : deq_tm M N A 
-                        → deq_tm N M A
+              → deq_tm N M A
   | deq_trans : deq_tm M1 M2 A
-                          → deq_tm M2 M3 A
-                          → deq_tm M1 M3 A
+                → deq_tm M2 M3 A
+                → deq_tm M1 M3 A
 
   % Rules for functions / Π-types
   | deq_lam : deq_tp A A' → ( { x : tm } wt_tm x A → deq_tm ( M x ) ( N x ) ( B x ) )
-                        → deq_tm ( lam A M ) ( lam A' N ) ( pi A B )
+              → deq_tm ( lam A M ) ( lam A' N ) ( pi A B )
   | deq_app : deq_tm M1 N1 ( pi A B )
-                        → deq_tm M2 N2 A
-                        → deq_tm ( app M1 M2 ) ( app N1 N2 ) ( B M1 )
-
+              → deq_tm M2 N2 A
+              → deq_tm ( app M1 M2 ) ( app N1 N2 ) ( B M1 )
+                                 
   % Rules for pairs / Σ-types
   | deq_pair : wf_tp ( sigma A B )
-                        → deq_tm M1 N1 A
-                        → deq_tm M2 N2 ( B M1 )
-                        → deq_tm ( pair M1 M2 ) ( pair N1 N2 ) ( sigma A B )
+               → deq_tm M1 N1 A
+               → deq_tm M2 N2 ( B M1 )
+               → deq_tm ( pair M1 M2 ) ( pair N1 N2 ) ( sigma A B )
   | deq_proj1 : deq_tm M N ( sigma A B )
-                          → deq_tm ( proj1 M ) ( proj2 N ) A
+                → deq_tm ( proj1 M ) ( proj2 N ) A
   | deq_proj2 : deq_tm M N ( sigma A B )
-                           → deq_tm ( proj2 M ) ( proj2 N ) ( B ( proj1 M ) )
+                → deq_tm ( proj2 M ) ( proj2 N ) ( B ( proj1 M ) )
 
   % Extensional rules
   | deq_pi_ext : ( { x : tm } wt_tm x A → deq_tm ( app M x ) ( app N x ) ( B x ) )
-                            → wt_tm M ( pi A C1 )
-                            → wt_tm N ( pi A C2 )
-                            → deq_tm M N ( pi A B )
+                 → wt_tm M ( pi A C1 )
+                 → wt_tm N ( pi A C2 )
+                 → deq_tm M N ( pi A B )
   | deq_sigma_ext : wf_tp ( sigma A B ) 
-                                    → deq_tm ( proj1 M ) ( proj2 N ) A
-                                    → deq_tm ( proj2 M ) ( proj2 N ) ( B ( proj1 M ) )
-                                    → deq_tm M N ( sigma A B )
+                    → deq_tm ( proj1 M ) ( proj2 N ) A
+                    → deq_tm ( proj2 M ) ( proj2 N ) ( B ( proj1 M ) )
+                    → deq_tm M N ( sigma A B )
 
   | deq_sub : deq_tm M N A
-                       → sub_tp A B
-                       → deq_tm M N B
+              → sub_tp A B
+              → deq_tm M N B
   | deq_sing_tm : wt_tm M ( sing N )
-                        → deq_tm M N ( sing N )
+                  → deq_tm M N ( sing N )
 ;
 
 

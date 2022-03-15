@@ -59,29 +59,44 @@ LF elim_ctx : ( tm → tm ) → type =
 ;
 
 
-% We define equality of terms so that we can represent factorizations : M = ε[M']
+% The paper has one rule for each redex, so we'll combine them into a single rule using a redex type
+LF redex : tm → tm → type =
+  | r_beta : redex ( app ( lam _ M ) M' ) ( M M' )
+  | r_proj1 : redex ( proj1 ( pair M1 M2 ) ) M1
+  | r_proj2 : redex ( proj2 ( pair M1 M2 ) ) M2
+;
+
+
+%  Next, we need a type that says  M = ε[M']
+% First, we define a notion of equality for terms
 LF tm_eq : tm → tm → type =
   | tm_refl : tm_eq M M
 ;
 
-% And we use such factorizations in the definition of head reductions :
+% factored [ Γ ⊢ M ][ Γ ⊢ ε ] [ Γ ⊢ M' ]  means   M = ε[M']
+inductive factored : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ elim_ctx ( \x. E ) ] →[ Γ ⊢ tm  ] → ctype =
+  | factor : { E' : [ Γ , x : tm ⊢ tm ] } { E : [ Γ ⊢ elim_ctx ( \x. E' ) ] } [ Γ ⊢ tm_eq M E'[.., M' ] ]
+             → factored [ Γ ⊢ M ] [ Γ ⊢ E ] [ Γ ⊢ M' ]
+;
+
+% Finally, we can define head reduction
+% Now we need to define head reduction using this factoring
 inductive head_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
-  | hr_beta : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-              [ Γ ⊢ tm_eq M E'[.., app ( lam A ( \x. M1 ) ) M2 ] ] → [ Γ ⊢ tm_eq M' ( E'[.., M1[..,M2]] ) ]
+  | hr_beta : { E' : [ Γ , x : tm ⊢ tm ] } { E : [ Γ ⊢ elim_ctx ( \x. E' ) ] }
+              factored [ Γ ⊢ M ] [ Γ ⊢ E ] [ Γ ⊢ app ( lam A ( \x. M1 ) ) M2 ] → factored [ Γ ⊢ M' ] [ Γ ⊢ E ] [ Γ ⊢ M1[.., M2] ]
               → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
-
-  | hr_proj1 : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-               [ Γ ⊢ tm_eq M E'[.., proj1 ( pair M1 M2 )] ] → [ Γ ⊢ tm_eq M' E'[.., M1] ]
+                         
+  | hr_proj1 : { E' : [ Γ , x : tm ⊢ tm ] } { E : [ Γ ⊢ elim_ctx ( \x. E' ) ] }
+               factored [ Γ ⊢ M ] [ Γ ⊢  E ] [ Γ ⊢ proj1 ( pair M1 M2 ) ] → factored [ Γ ⊢ M' ] [ Γ ⊢ E ] [ Γ ⊢ M1 ]
                → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
-
-  | hr_proj2 : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-               [ Γ ⊢ tm_eq M E'[.., proj2 ( pair M1 M2 )] ] → [ Γ ⊢ tm_eq M' E'[.., M2] ]
+                          
+  | hr_proj2 : { E' : [ Γ , x : tm ⊢ tm ] } { E : [ Γ ⊢ elim_ctx ( \x. E' ) ] }
+               factored [ Γ ⊢ M ] [ Γ ⊢  E ] [ Γ ⊢ proj2 ( pair M1 M2 ) ] → factored [ Γ ⊢ M' ] [ Γ ⊢ E ] [ Γ ⊢ M2 ]
                → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
-
-  |hr_path : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-             → [ Γ ⊢ tm_eq M E'[.., P] ] → [ Γ ⊢ tm_eq M' E'[.., N] ] 
-             → nat_tp [ Γ ⊢ P ] [ Γ ⊢ sing N ]
-             → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
+                          
+  | hr_path : { E : [ Γ , x : tm ⊢ tm ] }  { E' : [ Γ ⊢ elim_ctx ( \x. E ) ] }
+              → factored [ Γ ⊢ p ] [ Γ ⊢ E' ] [ Γ ⊢ p1 ] → factored [ Γ ⊢ M ] [ Γ ⊢ E' ] [ Γ ⊢ N ] →  nat_tp [ Γ ⊢ p ] [ Γ ⊢ sing N ]
+              → head_red [ Γ ⊢ p ] [ Γ ⊢ M ]
 ;
 
 

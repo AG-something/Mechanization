@@ -1,0 +1,22 @@
+%{----------------------------------------------------------------------------------------------
+           Definition of paths and some properties about them
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  NiP.
+
+               Author : Antoine Gaulin
+--------------------------------------------------------------------------------------------------}%
+inductive path : ( Γ : tctx ) [ Γ ⊢ tm ] → ctype =
+  | p_const : path [ Γ ⊢ const n ]
+  | p_var : path [ Γ ⊢ #b.1 ]
+ 
+  | p_app : path [ Γ ⊢ P ] → { M : [ Γ ⊢ tm ] }
+              path [ Γ ⊢ app P M ]
+  | p_proj1 : path [ Γ ⊢ P ]
+              → path [ Γ ⊢ proj1 P ]
+  | p_proj2 : path [ Γ ⊢ P ]
+              → path [ Γ ⊢ proj2 P ]
+;
+
+
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.3.  If Γ ⊢ p : A, then ?!B. Γ |> p /\ B and Γ ⊢ p : B and Γ ⊢ S_B(p) < A
+----------------------------------------------------------------------------------------------}%

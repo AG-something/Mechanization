@@ -1,0 +1,97 @@
+%{----------------------------------------------------------------------------------------------
+          Logical Relations for the proof of strong normalization
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 36.
+
+               Author : Antoine Gaulin
+
+------------------------------------------------------------------------------------------------}%
+
+%---------------------------------------------
+%  1. Sets and Operations on Sets
+%---------------------------------------------
+
+%--------------------------
+%  1.1.  Sets
+%--------------------------
+
+%{ I think sets should be at the LF-type level, otherwise they can't index the type for logical relations
+
+inductive tm_set : ctype =
+  | tm_set_empty : tm_set
+  | tm_set_cons : tm_set → ( Γ : tctx ) [ Γ ⊢ tm ]
+                  → tm_set
+;
+
+inductive tp_set : ctype =
+  | tp_set_empty : tp_set
+  | tp_set_cons : tp_set → ( Γ : tctx ) [ Γ ⊢ tp ]
+                  → tp_set
+;
+}%
+LF tm_set : type =
+  | tm_set_empty : tm_set
+  | tm_set_cons : tm_set → tm
+                  → tm_set
+;
+
+LF tp_set : type =
+  | tp_set_empty : tp_set
+  | tp_set_cons : tp_set → tp
+                  → tp_set
+
+
+  | tp_set_sing : tm_set
+                  → tp_set
+;
+
+%{   Sets of contexts and substitutions are used in the paper, but should not be needed in the mechanization
+
+inductive tctx_set : ctype =
+  | tctx_set_empty : tctx_set
+  | tctx_set_cons : tctx_set → { Γ : tctx }
+                    tctx_set
+;
+
+inductive subst_set : ctype =
+  | subst_set_empty : subst_set
+  | subst_set_cons : subst_set → ( Γ1 : tctx ) ( Γ2 : tctx ) { $σ : [ Γ1 ⊢ Γ2 ] }
+                     → subst_set
+;
+}%
+
+%--------------------------
+%  1.2.  Operations
+%--------------------------
+rec sing_set : ( Γ : tctx ) [ Γ ⊢ tm_set ] 
+               → [ Γ ⊢ tp_set ] =
+/ total tms (sing_set γ tms ) /
+fn TMS ⇒ case TMS of
+  | [ Γ ⊢ tm_set_empty ] ⇒ [ Γ ⊢ tp_set_empty ]
+  | [ Γ ⊢ tm_set_cons TMS' M ] ⇒ 
+        let [ Γ ⊢ TPS' ] = sing_set [ Γ ⊢ TMS' ] in
+        [ Γ ⊢ tp_set_cons TPS' ( sing M ) ]
+;
+
+
+%---------------------------------------------
+%  2. Logical Relations
+%---------------------------------------------
+
+%--------------------------
+%  2.1.   A ok [Δ]
+%--------------------------
+stratified LR_Ok : { Γ : tctx } { A : [ Γ ⊢ tp_set ] } ctype =
+  | ok_base : LR_Ok [ Γ ] [ Γ ⊢ tp_set_cons tp_set_empty base ]
+  | ok_sing : LR_In [ Γ ] [ Γ ⊢ N ] [ Γ ⊢ tp_set_cons tp_set_empty base ]
+              → LR_Ok [ Γ ] [ Γ ⊢ tp_set_sing N ]
+
+
+%--------------------------
+%  2.2.   M in A [Δ]
+%--------------------------
+and stratified LR_In : { Γ : tctx } { M : [ Γ ⊢ tm_set ] } { A : [ Γ ⊢ tp_set ] } ctype =
+;
+
+%--------------------------
+%  2.3.   G in Γ [Δ]         (maybe not useful)
+%--------------------------

@@ -34,12 +34,15 @@
 inductive nat_tp : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tp ] → ctype =
   | nt_const : nat_tp [ Γ ⊢ const n ] [ Γ ⊢ base ]
   | nt_var : nat_tp [ Γ ⊢  #b.1 ]  [ Γ ⊢ #b.2 ]
-  | nt_proj1 : nat_tp [ Γ ⊢ p ] [ Γ ⊢ sigma A ( \x. B ) ]
-                       → nat_tp [ Γ ⊢ proj1 p ] [ Γ ⊢ A ]
-  | nt_proj2 : nat_tp [ Γ ⊢ p ] [ Γ ⊢ sigma A ( \x. B ) ]
-                       → nat_tp [ Γ ⊢ proj2 p ] [ Γ ⊢ B[.., (proj1 p)] ]
-  | nt_app : nat_tp [ Γ ⊢ p ] [ Γ ⊢ pi A (\x. B ) ]
-                     → nat_tp [ Γ ⊢ app p M ] [ Γ ⊢ B[.. , M ] ]
+  | nt_proj1 : { P : [ Γ ⊢ tm ] } { A : [ Γ ⊢ tp ] } { B : [ Γ , x : tm ⊢ tp ] }
+               nat_tp [ Γ ⊢ P ] [ Γ ⊢ sigma A ( \x. B ) ]
+               → nat_tp [ Γ ⊢ proj1 P ] [ Γ ⊢ A ]
+  | nt_proj2 : { P : [ Γ ⊢ tm ] } { A : [ Γ ⊢ tp ] } { B : [ Γ , x : tm ⊢ tp ] }
+               nat_tp [ Γ ⊢ P ] [ Γ ⊢ sigma A ( \x. B ) ]
+               → nat_tp [ Γ ⊢ proj2 P ] [ Γ ⊢ B[.., (proj1 P)] ]
+  | nt_app : { P : [ Γ ⊢ tm ] } { A : [ Γ ⊢ tp ] } { B : [ Γ , x : tm ⊢ tp ] }
+             nat_tp [ Γ ⊢ P ] [ Γ ⊢ pi A (\x. B ) ]
+             → nat_tp [ Γ ⊢ app P M ] [ Γ ⊢ B[.. , M ] ]
 ;
 
 
@@ -48,55 +51,50 @@ inductive nat_tp : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tp ] → ctype =
 %----------------------------------------
 
 % Head reductions are encoded using elimination contexts
-LF elim_ctx : ( tm → tm ) → type =
-  | e_hole : elim_ctx ( \x. x )
-  | e_app : elim_ctx E
-            → { M : tm } elim_ctx ( \x. app ( E x ) M )
-  | e_proj1 : elim_ctx E 
-              → elim_ctx ( \x. proj1 ( E x ) )
-  | e_proj2 : elim_ctx E
-              → elim_ctx ( \x. proj2 ( E x ) )
+inductive elim_ctx : ( Γ : tctx ) [ Γ , x : tm ⊢ tm ] → ctype =
+  | e_hole : elim_ctx [ Γ , x : tm ⊢ x ]
+  | e_app :  { E : [ Γ , x : tm ⊢ tm ] }  elim_ctx [ Γ , x : tm ⊢ E ]
+             → { M : [ Γ ⊢ tm ] } elim_ctx [ Γ , x : tm ⊢ app E M[..] ]
+  | e_proj1 : { E : [ Γ , x : tm ⊢ tm ] } elim_ctx [ Γ , x : tm ⊢ E ]
+               → elim_ctx [ Γ , x : tm ⊢ proj1 E ]
+  | e_proj2 : { E : [ Γ , x : tm ⊢ tm ] } elim_ctx [ Γ , x : tm ⊢ E ]
+               → elim_ctx [ Γ , x : tm ⊢ proj2 E ]
 ;
 
-
-% We define equality of terms so that we can represent factorizations : M = ε[M']
-LF tm_eq : tm → tm → type =
-  | tm_refl : tm_eq M M
-;
 
 % And we use such factorizations in the definition of head reductions :
-inductive head_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
-  | hr_beta : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-              [ Γ ⊢ tm_eq M E'[.., app ( lam A ( \x. M1 ) ) M2 ] ] → [ Γ ⊢ tm_eq M' ( E'[.., M1[..,M2]] ) ]
+inductive head_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype = 
+  | hr_beta : elim_ctx [ Γ, x : tm ⊢ E ]
+              → [ Γ ⊢ tm_eq M E[.., app ( lam A ( \x. M1 ) ) M2 ] ] → [ Γ ⊢ tm_eq M' E[.., M1[.., M2]] ]
               → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
 
-  | hr_proj1 : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-               [ Γ ⊢ tm_eq M E'[.., proj1 ( pair M1 M2 )] ] → [ Γ ⊢ tm_eq M' E'[.., M1] ]
-               → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
+  | hr_proj1 : elim_ctx [ Γ, x : tm ⊢ E ]
+                → [ Γ ⊢ tm_eq M E[.., proj1 ( pair M1 M2 ) ] ] → [ Γ ⊢ tm_eq M' E[..,M1] ]
+                → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
 
-  | hr_proj2 : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-               [ Γ ⊢ tm_eq M E'[.., proj2 ( pair M1 M2 )] ] → [ Γ ⊢ tm_eq M' E'[.., M2] ]
-               → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
+  | hr_proj2 : elim_ctx [ Γ, x : tm ⊢ E ]
+                → [ Γ ⊢ tm_eq M E[.., proj2 ( pair M1 M2 ) ] ] → [ Γ ⊢ tm_eq M' E[..,M2] ]
+                → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
 
-  |hr_path : { E' : [ Γ, x : tm ⊢ tm ] } { E : [ Γ  ⊢ elim_ctx ( \x. E' ) ] } 
-             → [ Γ ⊢ tm_eq M E'[.., P] ] → [ Γ ⊢ tm_eq M' E'[.., N] ] 
-             → nat_tp [ Γ ⊢ P ] [ Γ ⊢ sing N ]
-             → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
+  | hr_path : elim_ctx [ Γ, x : tm ⊢ E ]
+               → { P : [ Γ ⊢ tm ] } { N : [ Γ ⊢ tm ] } nat_tp [ Γ ⊢ P ] [ Γ ⊢ sing N ]
+               → [ Γ ⊢ tm_eq M E[.., P] ] → [ Γ ⊢ tm_eq  M' E[.., N] ]
+               → head_red [ Γ ⊢ M ] [ Γ ⊢ M' ]
 ;
-
 
 %----------------------------------------
 %  Head Normalization
 %----------------------------------------
 % The head normalization jugment  Γ ⊢ M \/ N  depends on whether the term  M can step or not
 % So, to define it, we will need an empty type
-LF not_possible : type =
+inductive not_possible : ctype =
 ;
+
 
 inductive head_norm : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
   | hn_step : head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] → head_norm [ Γ ⊢ M' ] [ Γ ⊢ N ]
               → head_norm [ Γ ⊢ M ] [ Γ ⊢ N ]
-  | hn_nostep : ( { N : [ Γ ⊢ tm ] } head_red [ Γ ⊢ M ] [ Γ ⊢ N ] → [ Γ ⊢ not_possible ] )     % If M ~> N is impossible for all N, then M is already in head normal form
+  | hn_nostep : ( { N : [ Γ ⊢ tm ] } head_red [ Γ ⊢ M ] [ Γ ⊢ N ] → not_possible )     % If M ~> N is impossible for all N, then M is already in head normal form
                 → head_norm [ Γ ⊢ M ] [ Γ ⊢ M ]
 ;
 

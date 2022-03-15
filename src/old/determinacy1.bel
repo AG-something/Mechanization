@@ -1,0 +1,413 @@
+%{----------------------------------------------------------------------------------------------
+           Lemma 4.1 : Determinacy of normalization
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 21-22.
+
+               Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+  The purpose of this is to show that the normalization judgments for terms, paths, and types are deterministic ( in their last argument )
+  The bulk of the proof is to show that head normalization is deterministic
+    * The paper assumes that this holds
+
+--------------------------------------------------------------------------------------------------
+      Part 1 : Proving the diamond property
+--------------------------------------------------------------------------------------------------
+  The tricky part here is that the head reduction judgment is defined in terms of these elimination contexts which are functions
+  If we have  M ~> M1 and  M ~> M2 , then we need to factorize M into ε[M'] in order to know how rules have been applied.
+  Moreover, this factorization is not unique
+      e.g.  If  M = π1< M1, M2 >
+  Therefore, to pattern match on two head reduction derivations, we need elimination contexts ε1, ε2 and terms M1, M2 such that ε1[ M1 ] = M = ε2[ M2 ]
+  This kind of higher-order pattern matching cannot be done directly.
+  To work around this problem, we make the factorizations explicit
+----------------------------------------------------------------------------------------------}%
+LF tp_eq : tp → tp → type =
+  | tp_refl : tp_eq M M
+;
+
+
+% common_ref [ Γ ⊢ M1 ] [ Γ ⊢ M2 ]   means  M1 ~> M3  and M2 ~> M3  for some M3
+inductive common_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
+  | cr_step : head_red [ Γ ⊢ M1 ] [ Γ ⊢ M3 ] → head_red [ Γ ⊢ M2 ] [ Γ ⊢ M3 ]
+                        → common_red [ Γ ⊢ M1 ] [ Γ ⊢ M2 ]
+  | cr_refl : common_red [ Γ ⊢ M ] [ Γ ⊢ M ]
+;
+
+%  Diamond Lemma :
+%         If  M ~> M1  and  M ~> M2 , then there is some M3 such that  M1 ~> M3  and  M2 ~> M3
+rec diamond' : ( Γ : tctx ) head_red' [ Γ ⊢ M ] [ Γ ⊢ M1 ] → head_red' [ Γ ⊢ M ] [ Γ ⊢ M2 ] 
+                           → common_red' [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] = 
+/ total d ( diamond' γ m m1 m2 d e ) /
+fn d , e ⇒ case d of
+  | hr_redex' [ Γ , x : tm ⊢ E1 ] [ Γ ⊢ E1' ] [ Γ ⊢ R1 ] F1 ⇒ 
+        ( case e of 
+          | hr_redex' [ Γ , x : tm ⊢ E2 ] [ Γ ⊢ E2' ] [ Γ ⊢ R2 ] F2 ⇒ 
+                ( case [ Γ ⊢  E1' ] of
+                    | [ Γ  ⊢ e_hole ] ⇒ 
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ 
+                                  let ( F1 : factored [ Γ ⊢ M ] [ Γ ⊢ e_hole ] [ Γ ⊢ M ] ) = F1 in 
+                                  let ( F2 : factored [ Γ ⊢ M ] [ Γ ⊢ e_hole ] [ Γ ⊢ M ] ) = F2 in 
+                                  let ( [ Γ ⊢  R1 ] : [ Γ ⊢ redex M M1 ] ) = [ Γ ⊢ R1 ] in 
+                                  let ( [ Γ ⊢  R2 ] : [ Γ ⊢ redex M M2 ] ) = [ Γ ⊢ R2 ] in 
+                                  ( case [ Γ ⊢ R1 ] of  
+                                    | [ Γ ⊢ r_beta ] ⇒ 
+                                          let [ Γ ⊢ r_beta ] = [ Γ ⊢ R2 ] in 
+                                          cr_refl
+                                    | [ Γ ⊢ r_proj1 ] ⇒ 
+                                          let [ Γ ⊢ r_proj1 ] = [ Γ ⊢ R2 ] in 
+                                          cr_refl
+                                    | [ Γ ⊢ r_proj2 ] ⇒ 
+                                          let [ Γ ⊢ r_proj2 ] = [ Γ ⊢ R2 ] in 
+                                          cr_refl
+                                  )
+
+                            | [ Γ ⊢ e_app E2'' ] ⇒ 
+                                  let ( F1 : factored [ Γ ⊢ app M M' ] [ Γ ⊢ e_hole ] [ Γ ⊢ app M M' ] ) = F1 in 
+                                  let ( [ Γ ⊢ r_beta ] : [ Γ ⊢ redex ( app ( lam _ ( \x. M* ) ) M' ) ( M*[.., M']  ) ] ) = [ Γ ⊢ R1 ] in 
+                                  let ( F2 : factored [ Γ ⊢ app ( lam _ ( \x. M* ) ) M' ] [ Γ ⊢ e_app  E2'' ] [ Γ ⊢ M'' ] ) = F2 in 
+                                  let ( [ Γ ⊢ e_app E2'' ] : [ Γ ⊢ elim_ctx ( \x. app ( E2'' x ) M' ) ] ) = [ Γ ⊢ e_app E2'' ] in ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+
+                    | [ Γ ⊢ e_app E1'' ] ⇒ ?
+%{
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ ?
+                            | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+}%
+                    | [ Γ ⊢ e_proj1 E1'' ] ⇒ ?
+%{
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ ?
+                            | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+}%
+                    | [ Γ ⊢ e_proj2 E1'' ] ⇒ ?
+%{
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ ?
+                            | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+}%
+                )
+
+          | hr_path' [ Γ , x : tm ⊢ E2 ] [ Γ ⊢ E2' ] [ Γ ⊢ R2 ] F2 NT2 ⇒ ?
+        )
+
+  | hr_path' [ Γ , x : tm ⊢ E1 ] [ Γ ⊢ E1' ] [ Γ ⊢ R1 ] F1 NT1 ⇒  ?
+%{
+        ( case e of 
+          | hr_redex' [ Γ , x : tm ⊢ E2 ] [ Γ ⊢ E2' ] [ Γ ⊢ R2 ] F2 ⇒ 
+                ( case [ Γ ⊢  E1' ] of
+                    | [ Γ  ⊢ e_hole ] ⇒ 
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ ?
+                            | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+
+                    | [ Γ ⊢ e_app E1'' ] ⇒ 
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ ?
+                            | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+
+                    | [ Γ ⊢ e_proj1 E1'' ] ⇒ 
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ ?
+                            | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+
+                    | [ Γ ⊢ e_proj2 E1'' ] ⇒ 
+                          ( case [ Γ ⊢ E2' ] of
+                            | [ Γ  ⊢ e_hole ] ⇒ ?
+                            | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                            | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                          )
+                )
+
+          | hr_path' [ Γ , x : tm ⊢ E2 ] [ Γ ⊢ E2' ] [ Γ ⊢ R2 ] F2 NT2 ⇒ 
+                ( case [ Γ ⊢  E1' ] of
+                  | [ Γ  ⊢ e_hole ] ⇒ 
+                        ( case [ Γ ⊢ E2' ] of
+                          | [ Γ  ⊢ e_hole ] ⇒ ?
+                          | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                        )
+                            
+                  | [ Γ ⊢ e_app E1'' ] ⇒ 
+                        ( case [ Γ ⊢ E2' ] of
+                          | [ Γ  ⊢ e_hole ] ⇒ ?
+                          | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                        )
+                            
+                  | [ Γ ⊢ e_proj1 E1'' ] ⇒ 
+                        ( case [ Γ ⊢ E2' ] of
+                          | [ Γ  ⊢ e_hole ] ⇒ ?
+                          | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                        )
+                            
+                  | [ Γ ⊢ e_proj2 E1'' ] ⇒ 
+                        ( case [ Γ ⊢ E2' ] of
+                          | [ Γ  ⊢ e_hole ] ⇒ ?
+                          | [ Γ ⊢ e_app E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj1 E2'' ] ⇒ ?
+                          | [ Γ ⊢ e_proj2 E2'' ] ⇒ ?
+                        )
+                )
+        )
+}%
+;
+
+
+
+
+inductive common_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
+  | cr_step : head_red [ Γ ⊢ M1 ] [ Γ ⊢ M3 ] → head_red [ Γ ⊢ M2 ] [ Γ ⊢ M3 ]
+                        → common_red [ Γ ⊢ M1 ] [ Γ ⊢ M2 ]
+  | cr_refl : common_red [ Γ ⊢ M ] [ Γ ⊢ M ]
+;
+
+rec diamond : ( Γ : tctx ) head_red [ Γ ⊢ M ] [ Γ ⊢ M1 ] → head_red [ Γ ⊢ M ] [ Γ ⊢ M2 ] 
+                           → common_red [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] = 
+/ total d ( diamond γ m m1 m2 d e ) /
+fn d , e ⇒ ?
+%{
+case d of
+  | hr_redex E1 R1 ⇒ ?
+%        let ( [ Γ ⊢ E1 ] : [ Γ ⊢ elim_ctx ( \x. E ) ] ) = E1 in 
+%        let ( [ Γ ⊢ R1 ] : [ Γ ⊢ redex M1 M1 ] ) = R1 in  ?
+        
+        ( case e of 
+          | hr_redex E2 R2 ⇒ ?
+          | hr_path E2 NT2 ⇒ ?
+        )
+
+
+%        let ( [ Γ ⊢ E1 ] : [ Γ ⊢ elim_ctx ( \x. F1' ) ] ) = E1 in ?
+  | hr_path E1 NT1 ⇒ ?
+}%
+;
+
+
+% Lemma : If M ~> M'  and  M \/ N , then  M' \/ N
+rec rev_hr_norm : ( Γ : tctx ) head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] → head_norm [ Γ ⊢ M ] [ Γ ⊢ N ] 
+                                     → head_norm [ Γ ⊢ M' ] [ Γ ⊢ N ] =
+/ total d ( rev_hr_norm γ m m' n d e ) /
+fn d , e ⇒ case e of
+  | hn_step HR HN ⇒ 
+        let CR = diamond d HR in 
+        ( case CR of
+          | cr_step HR1 HR2 ⇒
+                let HN' = rev_hr_norm HR2 HN in 
+                hn_step HR1 HN'
+          | cr_refl ⇒ HN
+        )
+
+
+  | hn_nostep F ⇒
+        let ( d : head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] ) = d in 
+        impossible ( F [ Γ ⊢ M' ] d )
+;
+
+
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.1 ( Determinacy )
+             (1) If  Γ ⊢ p /\ A   and  Γ ⊢ p /\ B , then  A = B
+             (+) If  Γ ⊢ M \/ N1  and  Γ ⊢ M \/ N2 ,  then N1 = N2
+             (2) If  Γ ⊢ M : A ⇒ N1  and  Γ ⊢ M : A ⇒ N2 , then N1 = N2
+             (3) If Γ ⊢ p → p1 /\ A1  and  Γ ⊢ p → p2 /\  A2 , then  A1 = A2
+             (4) If Γ ⊢ A ⇒ B1  and  Γ ⊢ A ⇒ B2 , then  B1 = B2
+
+        * What notion of equality is used in this?
+            I think it's just defined by reflexivity ( up to renaming of bound variables )
+----------------------------------------------------------------------------------------------}%
+
+
+
+rec nat_tp_det : ( Γ : tctx ) nat_tp [ Γ ⊢ p ] [ Γ ⊢ A ] → nat_tp [ Γ ⊢ p ] [ Γ ⊢ A' ]
+                               → [ Γ ⊢ tp_eq A A' ] =
+/ total d ( nat_tp_det γ p a a' d e ) /
+fn d , e ⇒ case  d of
+  | nt_const ⇒ 
+        let nt_const  = e in
+        [ _ ⊢ tp_refl ]
+
+  | nt_var ⇒ 
+        let nt_var = e in 
+        [ _ ⊢ tp_refl ]
+
+  | nt_proj1 NT ⇒ 
+        let nt_proj1 NT' = e in
+        let [ Γ ⊢ tp_refl ] = nat_tp_det NT NT' in 
+        [ Γ ⊢ tp_refl ]
+
+  | nt_proj2 NT ⇒ 
+        let nt_proj2 NT' = e in
+        let [ _ ⊢ tp_refl ] = nat_tp_det  NT NT' in
+        [ _ ⊢ tp_refl ]
+
+  | nt_app NT ⇒ 
+        let nt_app NT' = e in
+        let [ _ ⊢ tp_refl ] = nat_tp_det NT NT' in 
+        [ _ ⊢ tp_refl ]
+;
+
+
+rec head_norm_det : ( Γ : tctx ) head_norm [ Γ ⊢ M ] [ Γ ⊢ N1 ] → head_norm [ Γ ⊢ M ] [ Γ ⊢ N2 ]
+                       → [ Γ ⊢ tm_eq N1 N2 ] =
+/ total d ( head_norm_det γ m n1 n2 d e ) /
+fn d , e ⇒ case d of
+  | hn_step HR HN ⇒ 
+        let hn_step HR' HN' = e in 
+        let CR = diamond HR HR' in 
+        ( case CR of
+            | cr_step HR1 HR2 ⇒
+                  let HN2 = rev_hr_norm HR2 HN' in 
+                  let HN1 = hn_step HR1 HN2 in 
+                  head_norm_det HN HN1
+            | cr_refl ⇒ 
+                  head_norm_det HN HN'
+        )
+
+  | hn_nostep F ⇒ 
+        ( case e of 
+            | hn_step HR' HN' ⇒ 
+                  let ( HR' : head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] ) = HR' in
+                  impossible ( F [ Γ ⊢ M' ] HR' )
+
+            | hn_nostep F' ⇒ 
+                  [ _ ⊢ tm_refl ]
+        )
+;
+
+
+rec tm_norm_det : ( Γ : tctx ) tm_norm [ Γ ⊢ M ] [ Γ ⊢ A ] [ Γ ⊢ N1 ]  → tm_norm [ Γ ⊢ M ] [ Γ ⊢ A ] [ Γ ⊢ N2 ]
+                                    → [ Γ ⊢ tm_eq N1 N2 ] =
+/ total d ( tm_norm_det γ m a n1 n2 d e ) /
+fn d , e ⇒ case d of 
+  | tmn_base HN PN ⇒ 
+        let tmn_base HN' PN' = e in
+        let [ _ ⊢ tm_refl ] = head_norm_det HN HN' in
+        let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+        [ _ ⊢ tm_refl ]
+
+  | tmn_sing HN PN ⇒ 
+        let tmn_sing HN' PN' = e in 
+        let [ _ ⊢ tm_refl ] = head_norm_det HN HN' in
+        let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+        [ _ ⊢ tm_refl ]
+
+  | tmn_pi TPM TMN ⇒ 
+        let tmn_pi TPM' TMN' = e in
+        let [ _  ⊢ tp_refl ] = tp_norm_det TPM TPM' in 
+        let [ _ , b : block ( x : tm , A : tp , t : wt_tm x A ) ⊢ tm_refl ] =  tm_norm_det TMN TMN' in
+        [ _ ⊢ tm_refl ]
+
+  | tmn_sigma TMN1 TMN2 ⇒ 
+        let tmn_sigma TMN1' TMN2' = e in
+        let [ _ ⊢ tm_refl ] = tm_norm_det TMN1 TMN1' in
+        let [ _ ⊢ tm_refl ] = tm_norm_det TMN2 TMN2' in 
+        [ _ ⊢ tm_refl ]
+
+
+and rec path_norm_det1 : ( Γ : tctx ) path_norm [ Γ ⊢ p ] [ Γ ⊢ p1 ] [ Γ ⊢ A1 ] → path_norm [Γ ⊢ p ] [Γ ⊢ p2 ] [ Γ ⊢ A2 ]
+                                                 → [ Γ ⊢ tm_eq p1 p2 ] = 
+/ total d ( path_norm_det1 γ p p1 a1 p2 a2 d e ) /
+fn d , e ⇒ case d of
+      | pn_const ⇒ 
+            let pn_const = e in
+            [ _ ⊢ tm_refl ]
+
+      | pn_var ⇒ 
+            let pn_var = e in 
+            [ _ ⊢tm_refl ]
+
+      | pn_app PN TMN ⇒
+            let pn_app PN' TMN' = e in
+            let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+            let [ _ ⊢ tp_refl ] = path_norm_det2 PN PN' in
+            let [ _ ⊢ tm_refl ] = tm_norm_det TMN TMN' in 
+            [ _ ⊢ tm_refl ]
+
+      | pn_proj1 PN ⇒
+            let pn_proj1 PN' = e in
+            let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+            [ _ ⊢ tm_refl ]
+
+      | pn_proj2 PN ⇒ 
+            let pn_proj2 PN' = e in
+            let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+            [ _ ⊢ tm_refl ]
+
+and rec path_norm_det2 : ( Γ : tctx ) path_norm [ Γ ⊢ p ] [ Γ ⊢ p1 ] [ Γ ⊢ A1 ] → path_norm [Γ ⊢ p ] [Γ ⊢ p2 ] [ Γ ⊢ A2 ]
+                                                 → [ Γ ⊢ tp_eq A1 A2 ] = 
+/ total d ( path_norm_det2 γ p p1 a1 p2 a2 d e ) /
+fn d , e ⇒ case d of
+      | pn_const ⇒ 
+            let pn_const = e in
+            [ _ ⊢ tp_refl ]
+
+      | pn_var ⇒ 
+            let pn_var = e in 
+            [ _ ⊢ tp_refl ]
+
+      | pn_app PN TMN ⇒
+            let pn_app PN' TMN' = e in
+            let [ _ ⊢ tp_refl ] = path_norm_det2 PN PN' in
+            [ _ ⊢ tp_refl ]
+
+      | pn_proj1 PN ⇒
+            let pn_proj1 PN' = e in
+            let [ _ ⊢ tp_refl ] = path_norm_det2 PN PN' in
+            [ _ ⊢ tp_refl ]
+
+      | pn_proj2 PN ⇒ 
+            let pn_proj2 PN' = e in
+            let [ _ ⊢ tp_refl ] = path_norm_det2 PN PN' in
+            [ _ ⊢ tp_refl ]
+
+and rec tp_norm_det : ( Γ : tctx ) tp_norm [ Γ ⊢ A ] [ Γ ⊢ B1 ] → tp_norm [ Γ ⊢ A ] [ Γ ⊢ B2 ] 
+                                           → [ Γ ⊢ tp_eq B1 B2 ] = 
+/ total d ( tp_norm_det γ a b1 b2 d e ) /
+fn d , e ⇒ case d of
+      | tpn_base ⇒ 
+            let tpn_base = e in 
+            [ _ ⊢ tp_refl ]
+
+      | tpn_sing TMN ⇒ 
+            let tpn_sing TMN' = e in
+            let [ _ ⊢ tm_refl ] = tm_norm_det TMN TMN' in 
+            [ _ ⊢ tp_refl ]
+
+      | tpn_pi TPN1 TPN2 ⇒
+            let tpn_pi TPN1' TPN2' = e in 
+            let [ _ ⊢ tp_refl ] = tp_norm_det TPN1 TPN1' in 
+            let [ _ , b : block ( x : tm , A : tp , t : wt_tm x A ) ⊢ tp_refl ] = tp_norm_det TPN2 TPN2' in
+            [ _ ⊢ tp_refl ]
+
+      | tpn_sigma TPN1 TPN2 ⇒
+            let tpn_sigma TPN1' TPN2' = e in 
+            let [ _ ⊢ tp_refl ] = tp_norm_det TPN1 TPN1' in 
+            let [ _, b : block ( x : tm , A : tp , t : wt_tm x A ) ⊢ tp_refl ] = tp_norm_det TPN2 TPN2' in 
+            [ _ ⊢ tp_refl ]
+;

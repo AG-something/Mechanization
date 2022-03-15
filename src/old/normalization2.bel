@@ -59,7 +59,7 @@ inductive nat_tp : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tp ] → ctype =
 
 
 inductive head_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
-  | hr_redex : [ Γ ⊢ elim_ctx ( \x. E ) ] → [ Γ ⊢ redex M1 M2 ]
+  | hr_redex : { E : [ Γ , x : tm ⊢ tm ] } [ Γ ⊢ elim_ctx ( \x. E ) ] → [ Γ ⊢ redex M1 M2 ]
                         → head_red [ Γ ⊢ E[.., M1] ] [ Γ ⊢ E[.., M2 ] ]
   | hr_path : [ Γ ⊢ elim_ctx ( \x. E ) ] → nat_tp [ Γ ⊢ p ] [ Γ ⊢ sing N ]
                       → head_red [ Γ ⊢ E[.., p] ] [ Γ ⊢ E[.., N ] ]

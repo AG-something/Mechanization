@@ -1,0 +1,503 @@
+%{----------------------------------------------------------------------------------------------
+           Proving the Diamond Property for Head Reductions
+               Source : Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.
+                 *  This part is silently assumed in the paper, but absolutely crucial
+               Author : Antoine Gaulin
+--------------------------------------------------------------------------------------------------
+  The tricky part here is that the head reduction judgment is defined in terms of these elimination contexts, which are functions
+  If we have  M ~> M1 and  M ~> M2 , then we need to factorize M into ε[M'] in order to know how rules have been applied.
+  Moreover, this factorization is not unique
+      e.g.  If  M = π1 M', then M = <>(M) and M = (π1 <>)(M')
+  Therefore, to pattern match on two head reduction derivations, we need elimination contexts ε1, ε2 and terms M1, M2 such that ε1[ M1 ] = M = ε2[ M2 ]
+  This kind of higher-order pattern matching cannot be done automatically by the type inference algorithm.
+  To work around this problem, we made the factorizations explicit in head reductions
+----------------------------------------------------------------------------------------------}%
+--coverage
+
+% To deal with the case where D and E are both 'hr_path', we will need to know that natural typing is deterministic
+rec nat_tp_det : ( Γ : tctx ) nat_tp [ Γ ⊢ p ] [ Γ ⊢ A ] → nat_tp [ Γ ⊢ p ] [ Γ ⊢ A' ]
+                               → [ Γ ⊢ tp_eq A A' ] =
+/ total d ( nat_tp_det γ p a a' d e ) /
+fn d , e ⇒ case  d of
+  | nt_const ⇒ 
+        let nt_const  = e in
+        [ _ ⊢ tp_refl ]
+
+  | nt_var ⇒ 
+        let nt_var = e in 
+        [ _ ⊢ tp_refl ]
+
+  | nt_proj1 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT ⇒ 
+        let nt_proj1 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT' = e in
+        let [ Γ ⊢ tp_refl ] = nat_tp_det NT NT' in 
+        [ Γ ⊢ tp_refl ]
+
+  | nt_proj2 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT ⇒ 
+        let nt_proj2 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT' = e in
+        let [ Γ ⊢ tp_refl ] = nat_tp_det  NT NT' in
+        [ Γ ⊢ tp_refl ]
+
+  | nt_app [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT ⇒ 
+        let nt_app [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT' = e in
+        let [ _ ⊢ tp_refl ] = nat_tp_det NT NT' in 
+        [ _ ⊢ tp_refl ]
+;
+
+
+
+% common_ref [ Γ ⊢ M1 ] [ Γ ⊢ M2 ]   means  M1 ~> M3  and M2 ~> M3  for some M3
+inductive common_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
+%  | cr_step : head_red [ Γ ⊢ M1 ] [ Γ ⊢ M3 ] → head_red [ Γ ⊢ M2 ] [ Γ ⊢ M3 ]
+ %                       → common_red [ Γ ⊢ M1 ] [ Γ ⊢ M2 ]
+  | cr_refl : common_red [ Γ ⊢ M ] [ Γ ⊢ M ]
+;
+
+
+rec diamond : ( Γ : tctx ) head_red [ Γ ⊢ M ] [ Γ ⊢ M1 ] → head_red [ Γ ⊢ M ] [ Γ ⊢ M2 ] 
+                           → common_red [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] = 
+/ trust / %m ( diamond γ m m1 m2 d e ) /
+fn d , e ⇒ case d of
+  | hr_beta EC1 EQ11 EQ12 ⇒ 
+        ( case e of
+          | hr_beta EC2 EQ21 EQ22 ⇒ 
+                ( case EC1 of
+                  | e_hole ⇒ 
+                        ( case EC2 of
+                          | e_hole ⇒ 
+                                let ( d : head_red [ Γ ⊢ app ( lam A (\x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = d in
+                                let ( e : head_red [ Γ ⊢ app ( lam A (\x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = e in
+                                cr_refl
+
+                          | e_app [ Γ , x : tm ⊢ E ] EC [ Γ ⊢ M* ] ⇒
+                                let ( EQ21 : [ Γ ⊢ tm_eq ( app ( lam A1 ( \x. M1 ) ) M1' ) ( app M2 M* ) ] ) = EQ21 in
+                                impossible EQ21
+
+                          | e_proj1 [ Γ , x : tm ⊢ E ] EC ⇒ 
+                                let ( EQ21 : [ Γ ⊢ tm_eq ( app ( lam A1 ( \x. M1 ) ) M1' ) ( proj1 M2 ) ] ) = EQ21 in
+                                impossible EQ21
+
+                          | e_proj2 [ Γ , x : tm ⊢ E ] EC ⇒ 
+                                let ( EQ21 : [ Γ ⊢ tm_eq ( app ( lam A1 ( \x. M1 ) ) M1' ) ( proj2 M2 ) ] ) = EQ21 in
+                                impossible EQ21
+                        )
+
+                  | e_app [ Γ , x : tm ⊢ E1 ] EC1' [ Γ ⊢ M1* ] ⇒ 
+                        ( case EC2 of 
+                          | e_hole ⇒
+                                let ( EQ11 : [ Γ ⊢ tm_eq ( app ( lam A2 ( \x. M2 ) ) M2' ) ( app M1 M1* ) ] ) = EQ11 in
+                                impossible EQ11
+
+                          | e_app [ Γ, x : tm ⊢ E2 ] EC2' [ Γ ⊢ M2* ] ⇒
+                                let ( d : head_red [ Γ ⊢ app M1 M1* ] [ Γ ⊢ app M1' M1* ] ) = d in 
+                                let ( e : head_red [ Γ ⊢ app M1 M1* ] [ Γ ⊢ app M2' M1* ] ) = e in
+
+                                let ( EQ11' : [ Γ ⊢ tm_eq M1 N1 ] ) = tm_eq_app1 EQ11 in
+                                let ( EQ21' : [ Γ ⊢ tm_eq M1 N2 ] ) = tm_eq_app1 EQ21 in
+                                let ( EQ12' : [ Γ ⊢ tm_eq M1' N1' ] ) = tm_eq_app1 EQ12 in 
+                                let ( EQ22' : [ Γ ⊢ tm_eq M2' N2' ] ) = tm_eq_app1 EQ22 in
+
+                                let ( HR1' : head_red [ Γ ⊢ M1 ] [ Γ ⊢ M1' ] )  = hr_beta EC1' EQ11' EQ12' in 
+                                let ( HR2' : head_red [ Γ ⊢ M1 ] [ Γ ⊢ M2' ] )  = hr_beta EC2' EQ21' EQ22' in
+                                let CR = diamond HR1' HR2' in
+                                ( case CR of 
+                                  | cr_refl ⇒ cr_refl
+                                )
+
+                          | e_proj1 [ Γ , x : tm ⊢ E ] EC ⇒
+                                let ( EQ21 : [ Γ ⊢ tm_eq ( app M1 M1' ) ( proj1 M2 ) ] ) = EQ21 in
+                                impossible EQ21
+
+                          | e_proj2 [ Γ , x : tm ⊢ E ] EC ⇒
+                                let ( EQ21 : [ Γ ⊢ tm_eq ( app M1 M1' ) ( proj2 M2 ) ] ) = EQ21 in
+                                impossible EQ21
+                        )
+
+                  | e_proj1 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                        ( case EC2 of 
+                          | e_hole ⇒ 
+                                let ( EQ11 : [ Γ ⊢ tm_eq ( app ( lam A2 ( \x. M2 ) ) M2' ) ( proj1 M1 ) ] ) = EQ11 in
+                                impossible EQ11
+
+                          | e_app [ Γ, x : tm ⊢ E2 ] EC2' [ Γ ⊢ M2* ] ⇒
+                                let ( EQ11 : [ Γ ⊢ tm_eq ( app M2 M2' ) ( proj1 M1 ) ] ) = EQ11 in
+                                impossible EQ11
+
+                          | e_proj1 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                                let ( e : head_red [ Γ ⊢ proj1 M2 ] [ Γ ⊢ proj1 M2' ] ) = e in 
+
+                                let EQ11' = tm_eq_proj1 EQ11 in 
+                                let EQ12' = tm_eq_proj1 EQ12 in 
+                                let EQ21' = tm_eq_proj1 EQ21 in 
+                                let EQ22' = tm_eq_proj1 EQ22 in
+
+                                let HR1' = hr_beta EC1' EQ11' EQ12' in 
+                                let HR2' = hr_beta EC2' EQ21' EQ22' in
+                                let CR = diamond  HR1' HR2' in 
+                                ( case CR of
+                                  | cr_refl ⇒ cr_refl
+                                )
+
+                          | e_proj2 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                let  ( EQ11 : [ Γ ⊢ tm_eq ( proj2 M2 ) ( proj1 M1 ) ] ) = EQ11 in 
+                                impossible EQ11
+                        )
+
+                  | e_proj2 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                        ( case EC2 of 
+                          | e_hole ⇒ 
+                                let ( EQ11 : [ Γ ⊢ tm_eq ( app ( lam A2 ( \x. M2 ) ) M2' ) ( proj2 M1 ) ] ) = EQ11 in
+                                impossible EQ11
+
+                          | e_app [ Γ, x : tm ⊢ E2 ] EC2' [ Γ ⊢ M2* ] ⇒
+                                let ( EQ11 : [ Γ ⊢ tm_eq ( app M2 M2' ) ( proj2 M1 ) ] ) = EQ11 in
+                                impossible EQ11
+
+                          | e_proj1 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                let  ( EQ11 : [ Γ ⊢ tm_eq ( proj1 M2 ) ( proj2 M1 ) ] ) = EQ11 in 
+                                impossible EQ11
+
+                          | e_proj2 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in 
+                                let ( e : head_red [ Γ ⊢ proj2 M2 ] [ Γ ⊢ proj2 M2' ] ) = e in 
+
+                                let EQ11' = tm_eq_proj2 EQ11 in 
+                                let EQ12' = tm_eq_proj2 EQ12 in 
+                                let EQ21' = tm_eq_proj2 EQ21 in 
+                                let EQ22' = tm_eq_proj2 EQ22 in
+
+                                let HR1' = hr_beta EC1' EQ11' EQ12' in 
+                                let HR2' = hr_beta EC2' EQ21' EQ22' in
+                                let CR = diamond HR1' HR2' in 
+                                ( case CR of
+                                  | cr_refl ⇒ cr_refl
+                                )
+                        )
+                )
+
+          | hr_proj1 EC2 EQ21 EQ22 ⇒ 
+                ( case EC1 of
+                    | e_hole ⇒ 
+                          let ( d : head_red [ Γ ⊢ app ( lam A1 ( \x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = d in
+                          impossible EQ21
+
+                    | e_app [ Γ, x : tm ⊢ E1 ] EC1' [ Γ ⊢ M1* ] ⇒ 
+                          let ( d : head_red [ Γ ⊢ app M1 M1* ] [ Γ ⊢ app M1' M1* ] ) = d in
+                          impossible EQ21
+
+                    | e_proj1 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          ( case EC2 of 
+                            | e_hole ⇒ 
+                                  let ( d : head_red [ Γ ⊢ app ( lam A1 ( \x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = d in 
+                                  impossible EQ21
+
+                            | e_app [ Γ , x : tm ⊢ E2 ] EC2' [ Γ ⊢ M2* ] ⇒ 
+                                  let ( d : head_red [ Γ ⊢ app ( lam A1 ( \x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = d in 
+                                  impossible EQ21
+
+                            | e_proj1 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                                  let ( e : head_red [ Γ ⊢ proj1 M2 ] [ Γ ⊢ proj1 M2' ] ) = e in
+                                  
+                                  let EQ11' = tm_eq_proj1 EQ11 in
+                                  let EQ12' = tm_eq_proj1 EQ12 in
+                                  let EQ21' = tm_eq_proj1 EQ21 in
+                                  let EQ22' = tm_eq_proj1 EQ22 in
+                                  
+                                  let HR1' = hr_beta EC1' EQ11' EQ12' in
+                                  let HR2' = hr_proj1 EC2' EQ21' EQ22' in
+                                  let CR = diamond HR1' HR2' in
+                                  ( case CR of
+                                    | cr_refl ⇒ cr_refl
+                                  )
+
+                            | e_proj2 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ app ( lam A1 ( \x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = d in 
+                                  impossible EQ21
+                          )
+
+                    | e_proj2 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in
+                          impossible EQ21
+                )
+
+          | hr_proj2 EC2 EQ21 EQ22 ⇒ 
+                ( case EC1 of
+                    | e_hole ⇒ 
+                          let ( d : head_red [ Γ ⊢ app ( lam A1 ( \x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = d in
+                          impossible EQ21
+
+                    | e_app [ Γ, x : tm ⊢ E1 ] EC1' [ Γ ⊢ M1* ] ⇒ 
+                          let ( d : head_red [ Γ ⊢ app M1 M1* ] [ Γ ⊢ app M1' M1* ] ) = d in
+                          impossible EQ21
+
+                    | e_proj1 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                          impossible EQ21
+                          
+                    | e_proj2 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          ( case EC2 of 
+                            | e_hole ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                                  impossible EQ21
+
+                            | e_app [ Γ , x : tm ⊢ E2] EC2' [ Γ ⊢ M2* ] ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                                  impossible EQ21
+
+                            | e_proj1 [ Γ , x : tm ⊢ E2] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                                  impossible EQ11
+
+                            | e_proj2 [ Γ , x : tm ⊢ E2] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in
+                                  let ( e : head_red [ Γ ⊢ proj2 M2 ] [ Γ ⊢ proj2 M2' ] ) = e in
+                                  
+                                  let EQ11' = tm_eq_proj2 EQ11 in
+                                  let EQ12' = tm_eq_proj2 EQ12 in
+                                  let EQ21' = tm_eq_proj2 EQ21 in
+                                  let EQ22' = tm_eq_proj2 EQ22 in
+                                  
+                                  let HR1' = hr_beta EC1' EQ11' EQ12' in
+                                  let HR2' = hr_proj2 EC2' EQ21' EQ22' in
+                                  let CR = diamond HR1' HR2' in
+                                  ( case CR of
+                                    | cr_refl ⇒ cr_refl
+                                  )
+                          )
+                )
+
+          | hr_path EC2 [ Γ ⊢ P2 ] [ Γ ⊢ N2 ] NT2 EQ21 EQ22 ⇒ 
+                let ( d : head_red [ Γ ⊢ app ( lam A1 ( \x. M1 ) ) M1' ] [ Γ ⊢ M1[.., M1'] ] ) = d in
+                impossible EQ21
+        )
+
+  | hr_proj1 EC1 EQ11 EQ12 ⇒ 
+        ( case e of
+          | hr_beta EC2 EQ21 EQ22 ⇒ 
+                let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                impossible EQ21
+
+          | hr_proj1 EC2 EQ21 EQ22 ⇒
+                ( case EC1 of
+                    | e_hole ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                          impossible EQ21
+                    | e_app [ Γ , x : tm ⊢ E1 ] EC1' [ Γ ⊢  M1* ] ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                          impossible EQ11
+
+                    | e_proj1 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          ( case EC2 of                              
+                            | e_hole ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 ( pair M2 M2' ) ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                                  let EQ11' = tm_eq_proj1 EQ11 in 
+                                  impossible EQ11'
+
+                            | e_app [ Γ , x : tm ⊢ E2 ] EC2' [ Γ ⊢ M2* ] ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                                  impossible EQ21
+
+                            | e_proj1 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 M ] [ Γ ⊢ proj1 M1 ] ) = d in
+                                  let ( e : head_red [ Γ ⊢ proj1 M ] [ Γ ⊢ proj1 M2 ] ) = e in 
+
+                                  let EQ11' = tm_eq_proj1 EQ11 in 
+                                  let EQ12' = tm_eq_proj1 EQ12 in 
+                                  let EQ21' = tm_eq_proj1 EQ21 in 
+                                  let EQ22' = tm_eq_proj1 EQ22 in
+
+                                  let HR1' = hr_proj1 EC1' EQ11' EQ12' in
+                                  let HR2' = hr_proj1 EC2' EQ21' EQ22' in
+                                  let cr_refl = diamond HR1' HR2' in
+                                  cr_refl
+
+                            | e_proj2 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                                  impossible EQ21
+                          )
+                    | e_proj2 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                          impossible EQ11
+                )
+
+          | hr_proj2 EC2 EQ21 EQ22 ⇒ 
+                let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                impossible EQ21
+          | hr_path EC2 [ Γ ⊢ P2 ] [ Γ ⊢ N2 ] NT2 EQ21 EQ22 ⇒ 
+                let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in 
+                impossible EQ21
+        )
+
+
+  | hr_proj2 EC1 EQ11 EQ12 ⇒ 
+        let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in
+        ( case e of
+          | hr_beta EC2 EQ21 EQ22 ⇒ 
+                impossible EQ21
+          | hr_proj1 EC2 EQ21 EQ22 ⇒
+                impossible EQ21
+          | hr_proj2 EC2 EQ21 EQ22 ⇒ 
+                ( case EC1 of
+                    | e_hole ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in 
+                          impossible EQ21
+                    | e_app [ Γ , x : tm ⊢ E1 ] EC1' [ Γ ⊢  M1* ] ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in
+                          impossible EQ11
+
+                    | e_proj1 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in
+                          impossible EQ11
+
+                    | e_proj2 [ Γ , x : tm ⊢ E1 ] EC1' ⇒ 
+                          ( case EC2 of                              
+                            | e_hole ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj2 ( pair M2 M2' ) ] [ Γ ⊢ proj2 M1' ] ) = d in 
+                                  let EQ11' = tm_eq_proj2 EQ11 in 
+                                  impossible EQ11'
+
+                            | e_app [ Γ , x : tm ⊢ E2 ] EC2' [ Γ ⊢ M2* ] ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in 
+                                  impossible EQ21
+
+                            | e_proj1 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M1' ] ) = d in 
+                                  impossible EQ21
+
+                            | e_proj2 [ Γ , x : tm ⊢ E2 ] EC2' ⇒ 
+                                  let ( d : head_red [ Γ ⊢ proj2 M ] [ Γ ⊢ proj2 M1 ] ) = d in
+                                  let ( e : head_red [ Γ ⊢ proj2 M ] [ Γ ⊢ proj2 M2 ] ) = e in 
+
+                                  let EQ11' = tm_eq_proj2 EQ11 in 
+                                  let EQ12' = tm_eq_proj2 EQ12 in 
+                                  let EQ21' = tm_eq_proj2 EQ21 in 
+                                  let EQ22' = tm_eq_proj2 EQ22 in
+
+                                  let HR1' = hr_proj2 EC1' EQ11' EQ12' in
+                                  let HR2' = hr_proj2 EC2' EQ21' EQ22' in
+                                  let cr_refl = diamond HR1' HR2' in
+                                  cr_refl
+                          )
+
+                )
+          | hr_path EC2 [ Γ ⊢ P2 ] [ Γ ⊢ N2 ] NT2 EQ21 EQ22 ⇒ 
+                impossible EQ21
+        )
+
+  | hr_path EC1 [ Γ ⊢ P1 ] [ Γ ⊢ N1 ] NT1 EQ11 EQ12 ⇒ 
+        ( case e of
+          | hr_beta EC2 EQ21 EQ22 ⇒ 
+                let ( e : head_red [ Γ ⊢ app M2 M2' ] [ Γ ⊢ app M2 M2' ] ) = e in
+                impossible EQ11
+
+          | hr_proj1 EC2 EQ21 EQ22 ⇒ 
+                let ( e : head_red [ Γ ⊢ proj1 M2 ] [ Γ ⊢ proj2 M2' ] ) = e in 
+                impossible EQ11
+          | hr_proj2 EC2 EQ21 EQ22 ⇒ 
+                let ( e : head_red [ Γ ⊢ proj2 M2 ] [ Γ ⊢ proj2 M2' ] ) = e in
+                impossible EQ11
+
+          | hr_path EC2 [ Γ ⊢ P2 ] [ Γ ⊢ N2 ] NT2 EQ21 EQ22 ⇒ ?
+
+%{  Case where both reductions come from natural typing doesn't work :
+        (1) Can't use that [ Γ ⊢ tm_eq M1 M2 ] and nat_tp [ Γ ⊢ M1 ] [ Γ ⊢ A ] to conclude nat_tp [Γ ⊢ M2 ] [ Γ ⊢ A]
+              **  Maybe changing nat_tp from an inductive to an LF type (or tm_eq from LF to inductive) would solve that
+                  But then how to do nat_tp for variable?
+
+                ( case EC1 of
+                  | e_hole ⇒ 
+                        ( case EC2 of
+                          | e_hole ⇒ 
+                                let ( EQ11 : [ Γ ⊢ tm_eq P1 P1 ] ) = EQ11 in
+                                let ( EQ12 : [ Γ ⊢ tm_eq N1 N1 ] ) = EQ12 in
+                                let ( EQ21 : [ Γ ⊢ tm_eq P1 P2 ] ) = EQ21 in 
+                                let ( EQ22 : [ Γ ⊢ tm_eq N2 N2 ] ) = EQ22 in
+                                let ( NT1 : nat_tp [ Γ ⊢ P1 ] [ Γ ⊢ sing N1 ] ) = NT1 in
+                                let ( NT2 : nat_tp [ Γ ⊢ P2 ] [ Γ ⊢ sing N2 ] ) = NT2 in
+                                let ( d : head_red [ Γ ⊢ P1 ] [ Γ ⊢ N1 ] ) = d in 
+                                let ( e : head_red [ Γ ⊢ P1 ] [ Γ ⊢ N2 ] ) = e in ?
+
+                          | e_app [ Γ , x : tm ⊢ E2' ] EC2' [ Γ ⊢ M2* ] ⇒ 
+                                let ( e : head_red [ Γ ⊢ app E2'[.., P2] M2* ] [ Γ ⊢ app E2'[.., N2] M2* ] ) = e in 
+                                let ( EQ11 : [ Γ ⊢ tm_eq P1 P1 ] ) = EQ11 in
+                                let ( EQ12 : [ Γ ⊢ tm_eq N1 N1 ] ) = EQ12 in
+                                let ( d : head_red [ Γ ⊢ P1 ] [ Γ ⊢ N1 ] ) = d in 
+                                let ( NT1 : nat_tp [ Γ ⊢ app P1' M2* ] [ Γ ⊢ sing N1 ] ) = NT1 in ?
+
+                          | e_proj1 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ 
+                                let ( EQ11 : [ Γ ⊢ tm_eq ( proj1 M2 ) P1 ] ) = EQ11 in
+                                let ( EQ22 : [ Γ ⊢ tm_eq N2 N2 ] ) = EQ22 in
+                                let ( d : head_red [ Γ ⊢ proj1 M2 ] [ Γ ⊢ N1 ] ) = d in
+                                let ( e : head_red [ Γ ⊢ proj1 M2 ] [ Γ ⊢ proj1 M2' ] ) = e in ?                                                                                                   
+
+                          | e_proj2 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ ?
+                        )
+
+                  | e_app [ Γ , x : tm ⊢ E1' ] EC1' [ Γ ⊢ M1* ] ⇒ 
+                        ( case EC2 of
+                          | e_hole ⇒ ?
+                          | e_app [ Γ , x : tm ⊢ E2' ] EC2' [ Γ ⊢ M2* ] ⇒ ?
+                          | e_proj1 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ 
+                                let ( d : head_red [ Γ ⊢ app M1 M1* ] [ Γ ⊢ app M1' M1* ] ) = d in
+                                impossible EQ21
+
+                          | e_proj2 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ 
+                                let ( d : head_red [ Γ ⊢ app M1 M1* ] [ Γ ⊢ app M1' M1* ] ) = d in
+                                impossible EQ21
+                        )
+
+                  | e_proj1 [ Γ , x : tm ⊢ E1' ] EC1' ⇒ 
+                        ( case EC2 of
+                          | e_hole ⇒ ?
+                          | e_app [ Γ , x : tm ⊢ E2' ] EC2' [ Γ ⊢ M2* ] ⇒ 
+                                let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                                impossible EQ21
+                          | e_proj1 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ ?
+                          | e_proj2 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ 
+                                let ( d : head_red [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                                impossible EQ21
+                        )
+
+                  | e_proj2 [ Γ , x : tm ⊢ E1' ] EC1' ⇒ 
+                        ( case EC2 of
+                          | e_hole ⇒ ?
+                          | e_app [ Γ , x : tm ⊢ E2' ] EC2' [ Γ ⊢ M2* ] ⇒ 
+                                let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                                impossible EQ21
+                          | e_proj1 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ 
+                                let ( d : head_red [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj1 M1' ] ) = d in
+                                impossible EQ21
+                          | e_proj2 [ Γ , x : tm ⊢ E2' ] EC2' ⇒ ?
+                        )
+                )
+}%
+        )
+;
+
+
+
+%{----------------------------------------
+   Corollary :
+        If Γ ⊢ M ~> M'  and Γ ⊢ M \/ N, then Γ ⊢ M' \/ N
+----------------------------------------}%
+rec rev_hr_norm : ( Γ : tctx ) head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] → head_norm [ Γ ⊢ M ] [ Γ ⊢ N ] 
+                                     → head_norm [ Γ ⊢ M' ] [ Γ ⊢ N ] =
+/ total d ( rev_hr_norm γ m m' n d e ) /
+fn d , e ⇒ case e of
+  | hn_step HR HN ⇒ 
+        let CR = diamond d HR in 
+        ( case CR of
+%          | cr_step HR1 HR2 ⇒
+ %               let HN' = rev_hr_norm HR2 HN in 
+  %              hn_step HR1 HN'
+          | cr_refl ⇒  HN
+        )
+
+
+  | hn_nostep F ⇒
+        let ( d : head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] ) = d in 
+        impossible ( F [ Γ ⊢ M' ] d )
+;
+
+

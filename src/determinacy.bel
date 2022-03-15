@@ -6,53 +6,10 @@
 
 --------------------------------------------------------------------------------------------------
   The purpose of this is to show that the normalization judgments for terms, paths, and types are deterministic ( in their last argument )
-  The proof is pretty much trivial once we have uniqueness of head normal forms
-    * The paper completely omits this even though it's crucial in the proof and it's the biggest part of the work.  Why?
-  This in turn follows easily from confluence, which is therefore the bulk of this proof.
-----------------------------------------------------------------------------------------------}%
+  The bulk of the proof is to show that head normalization is deterministic
+    * The paper assumes that this holds
 
-
-inductive common_red : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → ctype =
-  | common : head_red [ Γ ⊢ M1 ] [ Γ ⊢ M3 ] → head_red [ Γ ⊢ M2 ] [ Γ ⊢ M3 ]
-                        → common_red [ Γ ⊢ M1 ] [ Γ ⊢ M2 ]
-;
-
-rec diamond : ( Γ : tctx ) { M : [ Γ ⊢ tm ] } head_red [ Γ ⊢ M ] [ Γ ⊢ M1 ] → head_red [ Γ ⊢ M ] [ Γ ⊢ M2 ] 
-                           → common_red [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] = 
-/ total d ( diamond γ m m1 m2 d e ) /
-mlam M ⇒ fn d , e ⇒ case d of
-  | hr_redex E1 R1 ⇒ 
-        let ( [ Γ ⊢ E1 ] : [ Γ ⊢ elim_ctx ( \x. E ) ] ) = E1 in 
-        let ( [ Γ ⊢ R1 ] : [ Γ ⊢ redex M1 M1 ] ) = R1 in ?
-%        let ( e : head_red [ Γ ⊢ M' ] [ Γ ⊢ M2 ] ) = e in 
-
-%{
-        ( case e of 
-          | hr_redex E2 R2 ⇒ ?
-          | hr_path E2 NT2 ⇒ ?
-        )
-}%
-
-%        let ( [ Γ ⊢ E1 ] : [ Γ ⊢ elim_ctx ( \x. F1' ) ] ) = E1 in ?
-  | hr_path E1 NT1 ⇒ ?
-;
-
-
-% Lemma : If M ~> M'  and  M \/ N , then  M' \/ N
-rec rev_hr_norm : ( Γ : tctx ) head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] → head_norm [ Γ ⊢ M ] [ Γ ⊢ N ] 
-                                     → head_norm [ Γ ⊢ M' ] [ Γ ⊢ N ] =
-/ total d ( rev_hr_norm γ m m' n d e ) /
-fn d , e ⇒ case e of
-  | hn_step HR HN ⇒ 
-        let common HR1 HR2 = diamond _  d HR in 
-        let HN' = rev_hr_norm HR2 HN in 
-        hn_step HR1 HN'
-
-  | hn_nostep F ⇒
-        let ( d : head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] ) = d in 
-        impossible ( F [ Γ ⊢ M' ] d )
-;
-
+------------------------------------------------------------------------------------------------}%
 
 %{----------------------------------------------------------------------------------------------
        Lemma 4.1 ( Determinacy )
@@ -64,16 +21,10 @@ fn d , e ⇒ case e of
 
         * What notion of equality is used in this?
             I think it's just defined by reflexivity ( up to renaming of bound variables )
+
 ----------------------------------------------------------------------------------------------}%
-LF tm_eq : tm → tm → type =
-  | tm_refl : tm_eq M M
-;
 
-LF tp_eq : tp → tp → type =
-  | tp_refl : tp_eq M M
-;
-
-
+% Lemma 4.1 (1)
 rec nat_tp_det : ( Γ : tctx ) nat_tp [ Γ ⊢ p ] [ Γ ⊢ A ] → nat_tp [ Γ ⊢ p ] [ Γ ⊢ A' ]
                                → [ Γ ⊢ tp_eq A A' ] =
 / total d ( nat_tp_det γ p a a' d e ) /
@@ -86,112 +37,124 @@ fn d , e ⇒ case  d of
         let nt_var = e in 
         [ _ ⊢ tp_refl ]
 
-  | nt_proj1 NT ⇒ 
-        let nt_proj1 NT' = e in
+  | nt_proj1 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT ⇒ 
+        let nt_proj1 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT' = e in
         let [ Γ ⊢ tp_refl ] = nat_tp_det NT NT' in 
         [ Γ ⊢ tp_refl ]
 
-  | nt_proj2 NT ⇒ 
-        let nt_proj2 NT' = e in
-        let [ _ ⊢ tp_refl ] = nat_tp_det  NT NT' in
-        [ _ ⊢ tp_refl ]
+  | nt_proj2 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT ⇒ 
+        let nt_proj2 [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT' = e in
+        let [ Γ ⊢ tp_refl ] = nat_tp_det  NT NT' in
+        [ Γ ⊢ tp_refl ]
 
-  | nt_app NT ⇒ 
-        let nt_app NT' = e in
+  | nt_app [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT ⇒ 
+        let nt_app [ _ ⊢ _ ] [ _ ⊢ _ ] [ _ ⊢ _ ] NT' = e in
         let [ _ ⊢ tp_refl ] = nat_tp_det NT NT' in 
         [ _ ⊢ tp_refl ]
 ;
 
 
-rec hn_det : ( Γ : tctx ) head_norm [ Γ ⊢ M ] [ Γ ⊢ N1 ] → head_norm [ Γ ⊢ M ] [ Γ ⊢ N2 ]
-                       → [ Γ ⊢ tm_eq N1 N2 ] =
-/ total d ( hn_det γ m n1 n2 d e ) /
+% Lemma 4.1 (+)
+rec head_norm_det : ( Γ : tctx ) head_norm [ Γ ⊢ M ] [ Γ ⊢ N1 ] → head_norm [ Γ ⊢ M ] [ Γ ⊢ N2 ]
+                    → [ Γ ⊢ tm_eq N1 N2 ] =
+%                    → tm_eq [ Γ ⊢ N1 ] [ Γ ⊢ N2 ] =
+/ total d ( head_norm_det γ m n1 n2 d e ) /
 fn d , e ⇒ case d of
   | hn_step HR HN ⇒ 
         let hn_step HR' HN' = e in 
-        let common HR1 HR2 = diamond _ HR HR' in 
-        let HN2 = rev_hr_norm HR2 HN' in 
-        let HN1 = hn_step HR1 HN2 in 
-        hn_det HN HN1
+        let CR = diamond HR HR' in 
+        ( case CR of
+%          | cr_step HR1 HR2 ⇒
+ %               let HN2 = rev_hr_norm HR2 HN' in 
+  %              let HN1 = hn_step HR1 HN2 in 
+   %             head_norm_det HN HN1
+          | cr_refl ⇒ 
+                head_norm_det HN HN'
+        )
 
   | hn_nostep F ⇒ 
         ( case e of 
-            | hn_step HR' HN' ⇒ 
-                  let ( HR' : head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] ) = HR' in
-                  impossible ( F [ Γ ⊢ M' ] HR' )
-
-            | hn_nostep F' ⇒ 
-                  [ _ ⊢ tm_refl ]
+          | hn_step HR' HN' ⇒ 
+                let ( HR' : head_red [ Γ ⊢ M ] [ Γ ⊢ M' ] ) = HR' in
+                impossible ( F [ Γ ⊢ M' ] HR' )
+                           
+          | hn_nostep F' ⇒ 
+                [ _ ⊢ tm_refl ]
         )
 ;
 
 
+% Lemma 4.1 (2)
 rec tm_norm_det : ( Γ : tctx ) tm_norm [ Γ ⊢ M ] [ Γ ⊢ A ] [ Γ ⊢ N1 ]  → tm_norm [ Γ ⊢ M ] [ Γ ⊢ A ] [ Γ ⊢ N2 ]
-                                    → [ Γ ⊢ tm_eq N1 N2 ] =
+                  → [ Γ ⊢ tm_eq N1 N2 ] = 
+%                  → tm_eq [ Γ ⊢ N1 ] [ Γ ⊢ N2 ] =
 / total d ( tm_norm_det γ m a n1 n2 d e ) /
 fn d , e ⇒ case d of 
   | tmn_base HN PN ⇒ 
         let tmn_base HN' PN' = e in
-        let [ _ ⊢ tm_refl ] = hn_det HN HN' in
-        let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
-        [ _ ⊢ tm_refl ]
-
+        let [ Γ ⊢ tm_refl ] = head_norm_det HN HN' in
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+        [ Γ ⊢ tm_refl ]
+            
   | tmn_sing HN PN ⇒ 
         let tmn_sing HN' PN' = e in 
-        let [ _ ⊢ tm_refl ] = hn_det HN HN' in
-        let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
-        [ _ ⊢ tm_refl ]
+        let [ Γ ⊢ tm_refl ] = head_norm_det HN HN' in
+        let [ Γ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+        [ Γ ⊢ tm_refl ]
 
   | tmn_pi TPM TMN ⇒ 
         let tmn_pi TPM' TMN' = e in
-        let [ _  ⊢ tp_refl ] = tp_norm_det TPM TPM' in 
-        let [ _ , b : block ( x : tm , A : tp , t : wt_tm x A ) ⊢ tm_refl ] =  tm_norm_det TMN TMN' in
-        [ _ ⊢ tm_refl ]
+        let [ Γ  ⊢ tp_refl ] = tp_norm_det TPM TPM' in 
+        let [ Γ , b : block ( x : tm , A : tp , t_x : wt_tm x A ) ⊢ tm_refl ] =  tm_norm_det TMN TMN' in
+        [ Γ ⊢ tm_refl ]
 
   | tmn_sigma TMN1 TMN2 ⇒ 
         let tmn_sigma TMN1' TMN2' = e in
-        let [ _ ⊢ tm_refl ] = tm_norm_det TMN1 TMN1' in
-        let [ _ ⊢ tm_refl ] = tm_norm_det TMN2 TMN2' in 
-        [ _ ⊢ tm_refl ]
+        let [ Γ ⊢ tm_refl ] = tm_norm_det TMN1 TMN1' in
+        let [ Γ ⊢ tm_refl ] = tm_norm_det TMN2 TMN2' in 
+        [ Γ ⊢ tm_refl ]
 
 
+% Lemma 4.1 (3), term equality part
 and rec path_norm_det1 : ( Γ : tctx ) path_norm [ Γ ⊢ p ] [ Γ ⊢ p1 ] [ Γ ⊢ A1 ] → path_norm [Γ ⊢ p ] [Γ ⊢ p2 ] [ Γ ⊢ A2 ]
-                                                 → [ Γ ⊢ tm_eq p1 p2 ] = 
+                         → [ Γ ⊢ tm_eq p1 p2 ] =
+%                         → tm_eq [ Γ ⊢ p1 ] [ Γ ⊢ p2 ] = 
 / total d ( path_norm_det1 γ p p1 a1 p2 a2 d e ) /
 fn d , e ⇒ case d of
       | pn_const ⇒ 
             let pn_const = e in
             [ _ ⊢ tm_refl ]
-
+                
       | pn_var ⇒ 
             let pn_var = e in 
-            [ _ ⊢tm_refl ]
-
+            [ _ ⊢ tm_refl ]
+                
       | pn_app PN TMN ⇒
             let pn_app PN' TMN' = e in
-            let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+            let [ Γ ⊢ tm_refl ] = path_norm_det1 PN PN' in
             let [ _ ⊢ tp_refl ] = path_norm_det2 PN PN' in
-            let [ _ ⊢ tm_refl ] = tm_norm_det TMN TMN' in 
-            [ _ ⊢ tm_refl ]
-
+            let [ Γ ⊢ tm_refl ] = tm_norm_det TMN TMN' in 
+            [ Γ ⊢ tm_refl ]
+                
       | pn_proj1 PN ⇒
             let pn_proj1 PN' = e in
-            let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
-            [ _ ⊢ tm_refl ]
-
+            let [ Γ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+            [ Γ ⊢ tm_refl ]
+                
       | pn_proj2 PN ⇒ 
             let pn_proj2 PN' = e in
-            let [ _ ⊢ tm_refl ] = path_norm_det1 PN PN' in
-            [ _ ⊢ tm_refl ]
-
+            let [ Γ ⊢ tm_refl ] = path_norm_det1 PN PN' in
+            [ Γ ⊢ tm_refl ]
+                
+% Lemma 4.1 (3), type equality part
 and rec path_norm_det2 : ( Γ : tctx ) path_norm [ Γ ⊢ p ] [ Γ ⊢ p1 ] [ Γ ⊢ A1 ] → path_norm [Γ ⊢ p ] [Γ ⊢ p2 ] [ Γ ⊢ A2 ]
-                                                 → [ Γ ⊢ tp_eq A1 A2 ] = 
+                         → [ Γ ⊢ tp_eq A1 A2 ] = 
 / total d ( path_norm_det2 γ p p1 a1 p2 a2 d e ) /
 fn d , e ⇒ case d of
       | pn_const ⇒ 
             let pn_const = e in
             [ _ ⊢ tp_refl ]
-
+                
       | pn_var ⇒ 
             let pn_var = e in 
             [ _ ⊢ tp_refl ]
@@ -211,8 +174,9 @@ fn d , e ⇒ case d of
             let [ _ ⊢ tp_refl ] = path_norm_det2 PN PN' in
             [ _ ⊢ tp_refl ]
 
+% Lemma 4.1 (4)
 and rec tp_norm_det : ( Γ : tctx ) tp_norm [ Γ ⊢ A ] [ Γ ⊢ B1 ] → tp_norm [ Γ ⊢ A ] [ Γ ⊢ B2 ] 
-                                           → [ Γ ⊢ tp_eq B1 B2 ] = 
+                      → [ Γ ⊢ tp_eq B1 B2 ] = 
 / total d ( tp_norm_det γ a b1 b2 d e ) /
 fn d , e ⇒ case d of
       | tpn_base ⇒ 
@@ -221,7 +185,7 @@ fn d , e ⇒ case d of
 
       | tpn_sing TMN ⇒ 
             let tpn_sing TMN' = e in
-            let [ _ ⊢ tm_refl ] = tm_norm_det TMN TMN' in 
+            let [ Γ ⊢ tm_refl ] = tm_norm_det TMN TMN' in 
             [ _ ⊢ tp_refl ]
 
       | tpn_pi TPN1 TPN2 ⇒
@@ -235,4 +199,64 @@ fn d , e ⇒ case d of
             let [ _ ⊢ tp_refl ] = tp_norm_det TPN1 TPN1' in 
             let [ _, b : block ( x : tm , A : tp , t : wt_tm x A ) ⊢ tp_refl ] = tp_norm_det TPN2 TPN2' in 
             [ _ ⊢ tp_refl ]
+;
+
+
+
+
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.7.1
+----------------------------------------------------------------------------------------------}%
+rec hr_deq : ( Γ : tctx ) [ Γ ⊢ wt_tm M A ] → head_red [ Γ ⊢ M ] [ Γ ⊢ N ]
+             → [ Γ ⊢ deq_tm M N A ] = 
+/ total hr ( hr_deq _ _ _ _ _ hr ) /
+fn wt, hn ⇒ ?
+;
+
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.7.  If Γ ⊢ M : A and Γ |> M \/ N, then Γ ⊢ M = N : A
+----------------------------------------------------------------------------------------------}%
+rec hn_deq : ( Γ : tctx ) [ Γ ⊢ wt_tm M A ] → head_norm [ Γ ⊢ M ] [ Γ ⊢ N ]
+             → [ Γ ⊢ deq_tm M N A ] = 
+/ total hn ( hn_deq _ _ _ _ _ hn ) /
+fn wt, hn ⇒ case hn of
+  | hn_step HR HN' ⇒ 
+        let [ Γ ⊢ WT ] = wt in 
+        let [ Γ ⊢ D1 ] = hr_deq [ Γ ⊢ WT ] HR in ?     % For this I need to know type preservation holds
+%        let [ Γ  ⊢ D2 ] = hn_deq [ Γ ⊢ ? ] HN in      % So that I  can  get the typing derivation to go into the ?
+ %       [ Γ ⊢ deq_trans D1 D2 ]
+
+  | hn_nostep F ⇒ 
+        let [ Γ ⊢ WT ] = wt in 
+        [ Γ ⊢ deq_refl WT ]
+;
+
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.8. ( Soundness of Normalization )
+|           (1) If Γ ⊢ M : A and Γ |> M:A ⇒ N, then Γ ⊢ M = N : A
+|           (2) If Γ ⊢ p : A and Γ |> p → p' /\ B, then Γ ⊢ p = p' : A
+|           (3) If Γ ⊢ A and Γ |> A ⇒ B, then Γ ⊢ A = B
+----------------------------------------------------------------------------------------------}%
+rec sound_norm1 : ( Γ : tctx ) [ Γ ⊢ wt_tm M A ] → tm_norm [ Γ ⊢ M ] [ Γ ⊢ A ] [ Γ ⊢ N ] 
+                 → [ Γ ⊢ deq_tm M N A ] = 
+/ total tmn ( sound_norm1 _ _ _ _ _ tmn ) /
+fn d, tmn ⇒ case tmn of
+  | tmn_base HN PN ⇒ ?
+                         
+  | tmn_sing HN PN ⇒ ?
+                         
+  | tmn_pi TPN TMN ⇒ ?
+                         
+  | tmn_sigma TMN1 TMN2 ⇒ ?
+
+
+and rec sound_norm2 : ( Γ : tctx ) [ Γ ⊢ wt_tm P A ] → path_norm [ Γ ⊢ P ] [ Γ ⊢ P' ] [ Γ  ⊢ B ]
+                  → [ Γ ⊢ deq_tm P P' A ] =
+/ total pn ( sound_norm2 _ _ _ _ _ pn ) /
+fn d, pn ⇒ ?
+
+and rec sound_norm3 : ( Γ : tctx ) [ Γ ⊢ wf_tp A ] → tp_norm [ Γ ⊢ A ] [ Γ  ⊢ B ]
+                  → [ Γ ⊢ deq_tp A B ] =
+/ total tpn ( sound_norm3 _ _ _ _ tpn ) /
+fn d, pn ⇒ ?
 ;
