@@ -70,6 +70,9 @@ LF wf_tp : tp → type =
   | wf_sigma : ( { x : tm } wt_tm x A → wf_tp ( B x ) ) 
                 → wf_tp ( sigma A B )
 
+  % Admissible rules
+  
+
 
 % Subtypes
 and sub_tp : tp → tp → type =
@@ -87,6 +90,9 @@ and sub_tp : tp → tp → type =
                 → ( { x : tm } wt_tm x A1 → sub_tp ( B1 x ) ( B2 x ) )
                 → sub_tp ( sigma A1 B1 ) ( sigma A2 B2 )
 
+  % Admissible rules
+  
+
 
 % Declarative equality of types
 and deq_tp : tp → tp → type =
@@ -99,6 +105,9 @@ and deq_tp : tp → tp → type =
   | deq_sigma : deq_tp A1 A2
                 → ( { x : tm } wt_tm x A1 → deq_tp ( B1 x ) ( B2 x ) )
                 → deq_tp ( sigma A1 B1 ) ( sigma A2 B2 )
+
+  % Admissible rules
+
 
 
 % Well-typed terms
@@ -136,6 +145,12 @@ and wt_tm : tm → tp → type =
   | wt_sub : wt_tm M A
              → sub_tp A B
              → wt_tm M B
+
+  % Admissible rules
+  | wt_sing_adm : deq_tm M1 M2 base
+
+
+
 
 % Declarative equality of terms
 and deq_tm : tm → tm → tp → type =
