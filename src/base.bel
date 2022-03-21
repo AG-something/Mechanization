@@ -1,0 +1,12 @@
+%{----------------------------------------------------------------------------------------------
+      Some basic types needed for the mechanization of the λ^{ΣΠS}_{<}-calculus
+----------------------------------------------------------------------------------------------}%
+% Nats are used to index constants
+LF nat : type =
+  | zero : nat
+  | succ : nat → nat
+;
+
+% Empty type to express negation
+LF not_possible : type =
+;

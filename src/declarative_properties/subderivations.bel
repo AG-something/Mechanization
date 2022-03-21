@@ -1,0 +1,207 @@
+%{----------------------------------------------------------------------------------------------
+        Basic properties of the language (Subderivations)
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  p. 14.
+
+               Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------------------------}%
+
+% To restrict the number of proofs, it's useful to join all of these judgments into one type :
+inductive judgment : { Γ : ctx } ctype =
+  | j_ok_ctx : ok_ctx [ Γ ] → judgment  [ Γ ]
+  | j_wf_tp : wf_tp [ Γ ⊢ A ] → judgment [ Γ ]
+  | j_sub_tp : sub_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → judgment [ Γ ]
+  | j_deq_tp : deq_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → judgment [ Γ ]
+  | j_wt_tm : wt_tm [ Γ ⊢ M ] [ Γ ⊢ A ]  → judgment [ Γ ]
+  | j_deq_tm : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ A ] → judgment [ Γ ]
+;
+
+%{------------------------------------------------------------------------------------------------
+  Proposition 3.1 ( Subderivations )
+|      (1) If Γ ⊢ J, then Γ ⊢ ok 
+|      (2) If Γ, x:A ⊢ J, then  Γ ⊢ A
+|      (3) If Γ ⊢ M N : B, then Γ ⊢ M : A for some A     * Not sure if last two are needed
+|      (4) If Γ ⊢ π_i M : B, then Γ ⊢ M : A for some A   *
+------------------------------------------------------------------------------------------------}%
+rec sd1_wf_tp : ( Γ : ctx ) wf_tp [ Γ ⊢ A ] → ok_ctx [ Γ ] =
+/ total d ( sd1_wf_tp _ _ d ) /
+fn d ⇒ case d of
+  | wf_base OK ⇒ OK
+  | wf_sing WTM ⇒ sd1_wt_tm WTM
+  | wf_pi WFT ⇒ 
+        let ok_extend [ _ ⊢ _ ] OK WFT' = sd1_wf_tp WFT in 
+        OK        
+  | wf_sigma WFT ⇒
+        let ok_extend [ _ ⊢ _ ] OK WFT' = sd1_wf_tp WFT in 
+        OK
+
+
+and rec sd1_sub_tp : ( Γ : ctx ) sub_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → ok_ctx [ Γ ] =
+/ total d ( sd1_sub_tp _ _ _ d ) /
+fn d ⇒ case d of
+  | sub_sing_base WTM ⇒ sd1_wt_tm WTM
+  | sub_sing DTM ⇒  sd1_deq_tm DTM
+  | sub_base OK ⇒ OK
+  | sub_pi WFT ST1 ST2 ⇒ sd1_wf_tp WFT
+  | sub_sigma WFT ST1 ST2 ⇒ sd1_wf_tp WFT
+
+
+and rec sd1_deq_tp : ( Γ : ctx ) deq_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → ok_ctx [ Γ ] =
+/ total d ( sd1_deq_tp _ _ _ d ) /
+fn d ⇒ case d of 
+  | dtp_base OK ⇒ OK
+  | dtp_sing DTM ⇒ sd1_deq_tm DTM
+  | dtp_pi DTP1 DTP2 ⇒ sd1_deq_tp DTP1
+  | dtp_sigma DTP1 DTP2 ⇒ sd1_deq_tp DTP1
+
+
+and rec sd1_wt_tm : ( Γ : ctx ) wt_tm [ Γ ⊢ M ] [ Γ ⊢ A ] → ok_ctx [ Γ ] =
+/ total d ( sd1_wt_tm _ _ _ d ) /
+fn d ⇒ case d of 
+  | wt_const OK ⇒ OK
+  | wt_var OK ⇒ OK
+  | wt_lam WTM ⇒ 
+        let ok_extend [ _ ⊢ _ ] OK WFT' = sd1_wt_tm WTM in
+        OK
+  | wt_app WTM1 WTM2 ⇒ sd1_wt_tm WTM1
+  | wt_pair WTP WTM1 WTM2 ⇒ sd1_wf_tp WTP
+  | wt_proj1 WTM ⇒ sd1_wt_tm WTM
+  | wt_proj2 WTM ⇒ sd1_wt_tm WTM
+  | wt_sing WTM ⇒ sd1_wt_tm WTM
+  | wt_sigma WTP WTM1 WTM2 ⇒ sd1_wf_tp WTP
+  | wt_pi WTP WTM1 WTM2 ⇒ sd1_wf_tp WTP
+  | wt_subsum WTM STP ⇒ sd1_wt_tm WTM
+
+
+and rec sd1_deq_tm : ( Γ : ctx ) deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ A ] → ok_ctx [ Γ ] =
+/ total d ( sd1_deq_tm _ _ _ _ d ) /
+fn d ⇒ case d of
+  | dtm_refl WTM ⇒ sd1_wt_tm WTM
+  | dtm_sym DTM ⇒ sd1_deq_tm DTM
+  | dtm_trans DTM1 DTM2 ⇒ sd1_deq_tm DTM1
+  | dtm_lam DTP DTM ⇒ sd1_deq_tp DTP
+  | dtm_app DTM1 DTM2 ⇒ sd1_deq_tm DTM1
+  | dtm_proj1 DTM ⇒ sd1_deq_tm DTM
+  | dtm_proj2 DTM ⇒ sd1_deq_tm DTM
+  | dtm_pair WTP DTM1 DTM2 ⇒ sd1_wf_tp WTP
+  | dtm_sigma WTP DTM1 DTM ⇒ sd1_wf_tp WTP
+  | dtm_pi WTM1 WTM2 DTM ⇒ sd1_wt_tm WTM1
+  | dtm_subsum DTM ST ⇒ sd1_deq_tm DTM
+  | dtm_sing WTM ⇒ sd1_wt_tm WTM
+;
+
+rec subderivations1 : ( Γ : ctx ) judgment [ Γ ] → ok_ctx [ Γ ] =
+/ total j ( subderivations1 _ j ) /
+fn j ⇒ case j of
+  | j_ok_ctx OK ⇒ OK
+  | j_wf_tp WFT ⇒ sd1_wf_tp WFT
+  | j_sub_tp SUB ⇒ sd1_sub_tp SUB
+  | j_deq_tp DTP ⇒ sd1_deq_tp DTP
+  | j_wt_tm WTM ⇒ sd1_wt_tm WTM
+  | j_deq_tm DTM ⇒ sd1_deq_tm DTM
+;       
+
+
+
+%-------------------------------------------------------------------------------------------------
+
+% Second part of the lemma isn't quite right
+% I need a way to split Γ as Γ1, x:A, Γ2 
+inductive split_ctx : { Γ : ctx } { Γ1 : ctx } { Γ2 : ctx } ctype =
+  | split_base : split_ctx [ Γ , b : block ( x : tm , A : tp ) ] [ Γ , b : block ( x : tm , A : tp ) ] [ ]
+  | split_extend : split_ctx [ Γ ] [ Γ1 ] [ Γ2 ]
+                   → split_ctx [ Γ , b : block ( x : tm , A : tp ) ] [ Γ1 ] [ Γ2 , b : block ( x : tm , A : tp ) ]
+;
+
+rec sd2_ok_ctx : ( Γ : ctx ) ( Γ1 : ctx ) ( Γ2 : ctx ) { A : [ Γ1 ⊢ tp ] } split_ctx [ Γ ] [ Γ1 , b : block ( x : tm , A : tp ) ] [ Γ2 ] → ok_ctx [ Γ ]
+                → wf_tp [ Γ1 ⊢ A ] =
+/ total d ( sd2_ok_ctx _ _ _ _ d ) /
+mlam A ⇒ fn s, d ⇒ case s of
+  | split_base ⇒ 
+        let ( s : split_ctx [ Γ , b : block ( x : tm , A : tp ) ] [ Γ , b : block ( x : tm , A : tp ) ] [] ) = s in 
+        let ( d : ok_ctx [ Γ , b : block ( x : tm , A : tp ) ] ) = d in ?
+%        let ok_extend [ Γ ⊢ A ] OK WFT = d in ?
+%        WFT
+
+  | split_extend S ⇒ 
+        let ok_extend [ Γ ⊢ A ] OK WFT = d in 
+        sd2_ok_ctx [ _ ⊢ _ ] S OK
+and
+
+rec sd2_wf_tp : ( Γ : ctx ) ( Γ1 : ctx ) ( Γ2 : ctx ) split_ctx [ Γ ] [ Γ1 , b : block ( x : tm , A : tp ) ] [ Γ2 ] → wf_tp [ Γ ⊢ B ]
+                → wf_tp [ Γ1 ⊢ A ] =
+/ total d ( sd2_wf_tp _ _ _ _ _ d ) /
+fn s, d ⇒ case d of
+  | wf_base OK ⇒ ?
+  | wf_sing WTM ⇒ ? %sd2_wt_tm WTM
+  | wf_pi WFT ⇒ ?
+  | wf_sigma WFT ⇒ ?
+;
+%{
+and rec sd2_sub_tp : ( Γ : ctx ) sub_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → wf_tp [ Γ ⊢ #b.2 ] =
+/ total d ( sd2_sub_tp _ _ _ d ) /
+fn d ⇒ case d of
+  | sub_sing_base WTM ⇒ sd2_wt_tm WTM
+  | sub_sing DTM ⇒  sd2_deq_tm DTM
+  | sub_base OK ⇒ ?
+  | sub_pi WFT ST1 ST2 ⇒ sd2_wf_tp WFT
+  | sub_sigma WFT ST1 ST2 ⇒ sd2_wf_tp WFT
+
+
+and rec sd2_deq_tp : ( Γ : ctx ) deq_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → wf_tp [ Γ ⊢ #b.2 ] =
+/ total d ( sd2_deq_tp _ _ _ d ) /
+fn d ⇒ case d of 
+  | dtp_base OK ⇒ ?
+  | dtp_sing DTM ⇒ sd2_deq_tm DTM
+  | dtp_pi DTP1 DTP2 ⇒ sd2_deq_tp DTP1
+  | dtp_sigma DTP1 DTP2 ⇒ sd2_deq_tp DTP1
+
+
+and rec sd2_wt_tm : ( Γ : ctx ) wt_tm [ Γ ⊢ M ] [ Γ ⊢ B ] → wf_tp [ Γ ⊢ #b.2 ] =
+/ total d ( sd2_wt_tm _ _ _ d ) /
+fn d ⇒ case d of 
+  | wt_const OK ⇒ ?
+  | wt_var OK ⇒ ?
+  | wt_lam WTM ⇒ ?
+  | wt_app WTM1 WTM2 ⇒ sd2_wt_tm WTM1
+  | wt_pair WTP WTM1 WTM2 ⇒ sd2_wf_tp WTP
+  | wt_proj1 WTM ⇒ sd2_wt_tm WTM
+  | wt_proj2 WTM ⇒ sd2_wt_tm WTM
+  | wt_sing WTM ⇒ sd2_wt_tm WTM
+  | wt_sigma WTP WTM1 WTM2 ⇒ sd2_wf_tp WTP
+  | wt_pi WTP WTM1 WTM2 ⇒ sd2_wf_tp WTP
+  | wt_subsum WTM STP ⇒ sd2_wt_tm WTM
+
+
+and rec sd2_deq_tm : ( Γ : ctx ) deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ B ] → wf_tp [ Γ ⊢ #b.2 ] =
+/ total d ( sd2_deq_tm _ _ _ _ d ) /
+fn d ⇒ case d of
+  | dtm_refl WTM ⇒ sd2_wt_tm WTM
+  | dtm_sym DTM ⇒ sd2_deq_tm DTM
+  | dtm_trans DTM1 DTM2 ⇒ sd2_deq_tm DTM1
+  | dtm_lam DTP DTM ⇒ sd2_deq_tp DTP
+  | dtm_app DTM1 DTM2 ⇒ sd2_deq_tm DTM1
+  | dtm_proj1 DTM ⇒ sd2_deq_tm DTM
+  | dtm_proj2 DTM ⇒ sd2_deq_tm DTM
+  | dtm_pair WTP DTM1 DTM2 ⇒ sd2_wf_tp WTP
+  | dtm_sigma WTP DTM1 DTM ⇒ sd2_wf_tp WTP
+  | dtm_pi WTM1 WTM2 DTM ⇒ sd2_wt_tm WTM1
+  | dtm_subsum DTM ST ⇒ sd2_deq_tm DTM
+  | dtm_sing WTM ⇒ sd2_wt_tm WTM
+;
+
+
+rec subderivations2 : ( Γ : ctx ) judgment [ Γ ] → wf_tp [ Γ ⊢ #b.2 ] = 
+/ total j ( subderivations2 _ j ) /
+fn  j ⇒ case j of
+  | j_ok_ctx OK ⇒ ?
+  | j_wf_tp WFT ⇒ sd2_wf_tp WFT
+  | j_sub_tp SUB ⇒ sd2_sub_tp SUB
+  | j_deq_tp DTP ⇒ sd2_deq_tp DTP
+  | j_wt_tm WTM ⇒ sd2_wt_tm WTM
+  | j_deq_tm DTM ⇒ sd2_deq_tm DTM
+;
+}%

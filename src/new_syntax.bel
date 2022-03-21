@@ -1,0 +1,47 @@
+%{----------------------------------------------------------------------------------------------
+        Syntax and inference rules of a dependently-typed λ-calculus with unit types and subtyping
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 4-5.
+
+               Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+  Syntax of expressions
+     Typing Contexts    Γ, Δ ∷=   .             Empty context
+                                | Γ, x:A        Context extension
+
+     Types              A, B ∷=   b             Base type 
+                                | S(M)          Singleton type
+		                | S_A(M)        Labelled singleton type  (admissible)
+                	        | Πx:A. A'      Dependent function type
+		                | Σx:A. A'      Dependent pair type
+
+     Terms              M, N ∷=   c             Constants
+                                | x             Variables
+				| λx:A. M       Function abstraction
+                                | M M'          Function application
+				| <M, M'>       Pairs
+				| π_i(M)        Projections
+----------------------------------------------------------------------------------------------}%
+% Terms
+LF tm  : type =
+  | const : nat → tm                     % Constants
+  | lam : tp → ( tm → tm ) → tm          % Function abstaction
+  | app : tm → tm → tm                   % Function application
+  | pair : tm → tm → tm                  % Pairs
+  | proj1 : tm → tm                      % First projection
+  | proj2 : tm → tm                      % Second projection
+
+and 
+% Types
+tp : type =
+  | base : tp                            % Base types
+  | sing : tm → tp                       % Singleton types
+  | pi : tp → ( tm → tp ) → tp           % Dependent function type
+  | sigma : tp → ( tm → tp ) → tp        % Dependent pair type
+
+  % Admissible
+  | label_sing : tp → tm → tp            % Labelled singleton types (?)
+;
+
+% Contexts
+schema ctx = some [ A : tp ] block ( x : tm , A : tp );

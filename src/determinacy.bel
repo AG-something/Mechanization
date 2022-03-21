@@ -203,6 +203,10 @@ fn d , e ⇒ case d of
 
 
 
+%{----------------------------------------------------------------------------------------------
+       Lemma 4.3.  Well-typed paths normalize nicely
+----------------------------------------------------------------------------------------------}%
+
 
 %{----------------------------------------------------------------------------------------------
        Lemma 4.7.1
@@ -247,7 +251,12 @@ fn d, tmn ⇒ case tmn of
                          
   | tmn_pi TPN TMN ⇒ ?
                          
-  | tmn_sigma TMN1 TMN2 ⇒ ?
+  | tmn_sigma TMN1 TMN2 ⇒ 
+        let ( tmn : tm_norm [ Γ ⊢ M ] [ Γ ⊢ sigma A ( \x. B ) ] [ Γ ⊢ N ] ) = tmn in 
+        let ( [ Γ ⊢ D ] : [ Γ ⊢ wt_tm M ( sigma A ( \x. B ) ) ] ) = d in
+        let [ Γ ⊢ DTM1 ] = sound_norm1 [ Γ ⊢ wt_proj1 D ] TMN1 in
+        let [ Γ ⊢ DTM2 ] = sound_norm1 [ Γ ⊢ wt_proj2 D ] TMN2 in ?
+%        let [ Γ ⊢ DTM  ] = [ Γ ⊢ wt_pair _ DTM1 DTM2 ] in ?
 
 
 and rec sound_norm2 : ( Γ : tctx ) [ Γ ⊢ wt_tm P A ] → path_norm [ Γ ⊢ P ] [ Γ ⊢ P' ] [ Γ  ⊢ B ]

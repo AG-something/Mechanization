@@ -1,0 +1,79 @@
+%{----------------------------------------------------------------------------------------------
+           Principal types and their properties
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 19-21
+
+               Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+   We define an algorithmic typing judgment that directly computes most specific types (i.e. avoiding subsumption and singleton rules)
+------------------------------------------------------------------------------------------------}%
+inductive principal_typing : ( Γ : tctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tp ] → ctype =
+  | pt_const : principal_typing [ Γ ⊢ const n ] [ Γ ⊢ sing ( const n ) ]
+  | pt_var : principal_typing [ Γ ⊢ #b.1 ] [ Γ ⊢ label_sing #b.2 #b.1 ]
+
+  % Functions
+  | pt_lam : [ Γ ⊢ wf_tp A ] → principal_typing [ Γ , b : block ( x : tm , A : tp , t_x : wt_tm x A ) ⊢ M[.., b.1] ] 
+                                                [ Γ , b : block ( x : tm , A : tp , t_x : wt_tm x A ) ⊢ B[.., b.1] ]
+             → principal_typing [ Γ ⊢ lam A (\x. M) ] [ Γ ⊢ pi A ( \x. B ) ]
+  | pt_app : principal_typing [ Γ ⊢ M ] [ Γ ⊢ pi A ( \x. B ) ] → principal_typing [ Γ ⊢ M' ] [ Γ ⊢ A' ] → [ Γ ⊢ sub_tp A' A ]
+             → principal_typing [ Γ ⊢ app M M' ] [ Γ ⊢ B[..,M'] ]
+
+  % Pairs
+  | pt_pair : principal_typing [ Γ ⊢ M1 ] [ Γ ⊢ A1 ] → principal_typing [ Γ ⊢ M2 ] [ Γ ⊢ A2 ]
+              → principal_typing [ Γ ⊢ pair M1 M2 ] [ Γ ⊢ sigma A1 (\x. A2[..]) ]
+  | pt_proj1 : principal_typing [ Γ ⊢ M ] [ Γ ⊢ sigma A1 ( \x. A2[..] ) ]
+               → principal_typing [ Γ ⊢ proj1 M ] [ Γ ⊢ A1 ]
+  | pt_proj2 : principal_typing [ Γ ⊢ M ] [ Γ ⊢ sigma A1 ( \x. A2[..] ) ]
+               → principal_typing [ Γ ⊢ proj2 M ] [ Γ ⊢ A2 ]
+;
+
+
+%{------------------------------------------------------------------------------------------------
+  Proposition 3.8 ( Principal Type Soundness )
+       If Γ ⊢ M ∷ A  (M has principal type A), then Γ ⊢ M:A  (M has type A)
+------------------------------------------------------------------------------------------------}%
+rec pt_soundness : ( Γ : tctx ) principal_typing [ Γ ⊢ M ] [ Γ ⊢ A ]
+                   → [ Γ ⊢ wt_tm M A ] =
+%/ total d ( pt_soundness _ _ _ d ) /
+fn d ⇒ case d of
+  | pt_const ⇒ 
+        let ( d : principal_typing [ Γ ⊢ const n ] [ Γ ⊢ sing ( const n ) ] ) = d in 
+        [ Γ ⊢ wt_sing (wt_const n) ]
+  | pt_var ⇒ 
+        let ( d : principal_typing [ Γ ⊢ #b.1 ] [ Γ ⊢ label_sing #b.2 #b.1 ] ) = d in 
+        [ Γ ⊢ wt_labsing_adm #b.3 ]
+
+  % Functions 
+  | pt_lam [ Γ ⊢ WF ] PT' ⇒ 
+        let [ Γ , b : block ( x : tm , A : tp, t_x : wt_tm x A ) ⊢ WT'[.., b.1, b.2, b.3] ] = pt_soundness PT' in 
+        [ Γ ⊢ wt_lam (\x. \A. \t_x. WT' ) ]
+
+  | pt_app PT1 PT2 [ Γ ⊢ ST ] ⇒ 
+        let ( [ Γ ⊢ WT1 ] : [ Γ ⊢ wt_tm M ( pi A ( \x. B ) ) ] ) = pt_soundness PT1 in 
+        let ( [ Γ ⊢ WT2 ] : [ Γ ⊢ wt_tm M' A' ] ) = pt_soundness PT2 in 
+        [ Γ ⊢ wt_app WT1 ( wt_sub WT2 ST ) ]
+
+  % Pair
+  | pt_pair PT1 PT2 ⇒ 
+        let ( d : principal_typing [ Γ ⊢ pair M1 M2 ] [ Γ ⊢ sigma A1 ( \x. A2[..] ) ] ) = d in
+        let ( [ Γ ⊢ WT1 ] : [ Γ ⊢ wt_tm M1 A1 ] ) = pt_soundness PT1 in 
+        let ( [ Γ ⊢ WT2 ] : [ Γ ⊢ wt_tm M2 A2 ] ) = pt_soundness PT2 in 
+  %      let [ Γ, b : block ( x : tm, A1 : tp, t_x : wt_tm x A1 ) ⊢ WT2'[.., b.1, b.2, b.3] ] = [ Γ ⊢ WT2 ] in 
+        let ( [ Γ ⊢ WF2 ] : [ Γ ⊢ wf_tp A2 ] ) = wtm_to_wtp _ [ Γ ⊢ WT2 ] in 
+        let ( [ Γ, b : block ( x : tm, A1 : tp, t_x : wt_tm x A1 ) ⊢ WF2'[.., b.1, b.2, b.3] ] 
+              : [ Γ, b : block ( x : tm, A1 : tp, t_x : wt_tm x A1 ) ⊢ wf_tp A2[..] ] )
+            = [ Γ, b : block ( x : tm, A1 : tp, t_x : wt_tm x A1 ) ⊢ WF2[..] ] in ?
+
+%        let [ Γ ⊢ WF ] = [ Γ ⊢ wf_sigma (\x. \A. \t_x. WT2[..] ) ] in ?
+%        let [ Γ, b : block ( x : tm , A1 : tp, t_x : wt_tm x A1 ) ⊢ WT2'[.., b.1, b.2, b.3] ] 
+ %           = [  Γ, b : block ( x : tm , A : tp, t_x : wt_tm x A ) ⊢ WT2[..] ] in 
+%        let [ Γ ⊢ WF ] = [ Γ ⊢ wf_sigma (\x. \A1. \t_x. WF2'[.., x, A1, t_x] ) ] in ?
+
+  | pt_proj1 PT' ⇒ 
+        let [ Γ ⊢ WT' ] = pt_soundness PT' in
+        [ Γ ⊢ wt_proj1 WT' ]
+
+  | pt_proj2 PT' ⇒ 
+        let [ Γ ⊢ WT' ] = pt_soundness PT' in
+        [ Γ ⊢ wt_proj2 WT' ]
+;

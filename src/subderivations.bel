@@ -1,0 +1,87 @@
+%{----------------------------------------------------------------------------------------------
+        Basic properties of the language
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 14-?.
+
+               Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+  Proposition 3.1 ( Subderivations )
+       (1) If Γ, x:A, Γ' ⊢ J, then Γ ⊢ A
+            * This is actually several proofs
+       (2) If Γ ⊢ M : A, then Γ ⊢ A
+------------------------------------------------------------------------------------------------}%
+rec ctx_assumption : { Γ : tctx } → [ Γ ⊢ wf_tp #b.2 ] = 
+mlam Γ ⇒ case [Γ] of 
+  | [] ⇒ ?
+  | [ Γ' , b : block ( x : tm, A : tp, t_x : wt_tm x A ) ] ⇒ ?
+;
+
+%{
+rec ctx_assumption1 : ( Γ : tctx ) { A : [ Γ ⊢ tp ] } [ Γ, b : block ( x : tm, A : tp, t_x : wt_tm x A ) ⊢ wf_tp B ]
+                     → [ Γ ⊢ wf_tp A ] = 
+mlam A ⇒ fn d ⇒ 
+    let ( [ Γ, b : block ( x : tm, A : tp, t_x : wt_tm x A ) ⊢ D ] : [ Γ, b : block ( x : tm, A : tp, t_x : wt_tm x A ) ⊢ wf_tp B ] ) = d in ?
+;
+}%
+%{
+mlam A ⇒ fn d ⇒ let ( [ Γ, b : block ( x : tm, t_A : wf_tp A, t_x : wt_tm x A ) ⊢ D ] : [ Γ , b : block ( x : tm, t_A : wf_tp A, t_x : wt_tm x A ) ⊢ wf_tp B ] ) = d in 
+       ( case d of 
+           | [ Γ, b : block ( x : tm, t_A : wf_tp A, t_x : wt_tm x A ) ⊢ wf_base ] ⇒ ?
+           | [ Γ, b : block ( x : tm, t_A : wf_tp A, t_x : wt_tm x A ) ⊢ wf_sing WT ] ⇒ 
+                 ctx_assumption2 [ Γ ⊢ A ] [ Γ, b : block ( x : tm, t_A : wf_tp A, t_x : wt_tm x A ) ⊢ WT ]
+           | [ Γ, b : block ( x : tm, A : tp, t_x : wt_tm x A ) ⊢ wf_sing WT ] ⇒ ?
+%                 let [ Γ , b : block ( x : tm, A : tp, t_x : wt_tm x A ) ⊢ WF ] = ctx_assumption1 [ _ ⊢ _ ] [ Γ, b : block ( x : tm, A : tp, t_x : wt_tm x A ) ⊢ wf_sing WT ] in ? 
+       )
+
+
+and rec ctx_assumption2 : ( Γ : tctx ) { A : [ Γ ⊢ tp ] } [ Γ , b : block ( x : tm , t_A : wf_tp A , t_x : wt_tm x A ) ⊢ wt_tm M B  ]
+                      → [ Γ ⊢ wf_tp A ] =
+mlam A ⇒ fn d ⇒ 
+    let ( [ Γ, b : block ( x : tm, t_A : wf_tp A, t_x : wt_tm x A ) ⊢ D ] : [ Γ , b : block ( x : tm, t_A : wf_tp A, t_x : wt_tm x A ) ⊢ wt_tm M B ] ) = d in ?
+
+;
+}%
+
+rec wtm_to_wtp : ( Γ : tctx ) { A: [ Γ ⊢ tp ] } [ Γ ⊢ wt_tm M A ] 
+                 → [ Γ ⊢ wf_tp A ] =
+%/ total d ( wtm_to_wtp _ _ _ d ) /
+mlam A ⇒ fn d ⇒ case d of
+  % Axioms
+  | [ Γ ⊢ wt_const n ] ⇒ [ Γ ⊢ wf_base ]
+  | [ Γ ⊢ wt_sing D ] ⇒ [ Γ ⊢ wf_sing D ]
+
+
+  % Functions
+  | [ Γ ⊢ wt_lam (\x. \A. \t_x. F ) ] ⇒ 
+        let [ Γ , b : block ( x: tm , A : tp , t_x : wt_tm x A ) ⊢ WT ] = [ Γ , b : block ( x: tm , A : tp , t_x : wt_tm x A ) ⊢ F[.., b.1, b.2, b.3] ] in 
+        let [ Γ , b : block ( x: tm , A : tp, t_x : wt_tm x A ) ⊢ WF[.., b.1, b.2, b.3 ]] 
+               = wtm_to_wtp [ _ ⊢ _ ] [ Γ , b : block ( x: tm , A : tp, t_x : wt_tm x A ) ⊢ WT ] in 
+        [ Γ ⊢ wf_pi (\x. \A. \t_x. WF ) ]
+
+  | [ Γ ⊢ wt_app WT1 WT2 ] ⇒ 
+        let ( [ Γ ⊢ WT1 ] : [ Γ ⊢ wt_tm M ( pi A ( \x. B ) ) ] ) =  [ Γ ⊢ WT1 ] in
+        let [ Γ ⊢ wf_pi ( \x. \A. \t_x. WF ) ] = wtm_to_wtp _ [ Γ ⊢ WT1 ] in 
+        let ( [ Γ ⊢ WT2 ] : [ Γ ⊢ wt_tm N A] ) = [ Γ ⊢ WT2 ] in 
+        let [ Γ ⊢ WF2 ] = [ Γ ⊢ WF[.., N, A, WT2 ] ] in 
+        [ Γ ⊢ WF2 ]
+
+  | [ Γ ⊢ wt_pi (\x. \A. \t_x. WT1 ) WT2 WF ] ⇒ 
+        let [ Γ , b : block ( x: tm , A : tp, t_x : wt_tm x A ) ⊢ WT1' ] 
+             = [ Γ , b : block ( x: tm , A : tp, t_x : wt_tm x A ) ⊢ WT1[.., b.1, b.2, b.3] ] in 
+        let [ Γ , b : block ( x: tm , A : tp, t_x : wt_tm x A ) ⊢ WF'[.., b.1, b.2, b.3 ]] 
+               = wtm_to_wtp _ [ Γ , b : block ( x: tm , A : tp, t_x : wt_tm x A ) ⊢ WT1' ] in 
+        [ Γ ⊢ wf_pi (\x. \A. \t_x. WF' ) ]
+
+
+  % Pairs
+  | [ Γ ⊢ wt_pair WF WT1 WT2 ] ⇒ [ Γ ⊢ WF ]
+  | [ Γ ⊢ wt_proj1 WT ] ⇒ 
+        let ( [ Γ ⊢ WT ] : [ Γ ⊢ wt_tm M ( sigma A ( \x. B ) ) ] ) = [ Γ ⊢ WT ] in 
+        let [ Γ ⊢ wf_sigma ( \x. \A. \t_x. WF ) ] = wtm_to_wtp _ [ Γ ⊢ WT ] in ?       % Need another lemma : If
+
+  | [ Γ ⊢ wt_proj2 WT ] ⇒
+        let ( [ Γ ⊢ WT ] : [ Γ ⊢ wt_tm M ( sigma A ( \x. B ) ) ] ) = [ Γ ⊢ WT ] in 
+        let [ Γ ⊢ wf_sigma ( \x. \A. \t_x. WF ) ] = wtm_to_wtp _ [ Γ ⊢ WT ] in 
+        [ Γ ⊢ WF[.., proj1 M, A, wt_proj1 WT] ]
+;
+

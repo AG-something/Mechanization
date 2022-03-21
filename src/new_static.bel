@@ -1,0 +1,142 @@
+%{---------------------------------------------------------------------------------------------
+        Syntax and inference rules of a dependently-typed λ-calculus with unit types and subtyping
+               Source :   Stone, C.A.,  Harper, R. (2006). Extensional Equivalence and Singleton Types.  pp. 5-14.
+
+               Author : Antoine Gaulin
+
+--------------------------------------------------------------------------------------------------
+    Judgments :
+               Well-formed context                  Γ ⊢ ok
+
+               Well-formed types                    Γ ⊢ A
+               Subtypes                             Γ ⊢ A < B
+               Declarative equality of types        Γ ⊢ A == B
+
+               Well-typed terms                     Γ ⊢ M : A
+               Declarative equality of terms        Γ ⊢ M == N : A
+
+
+----------------------------------------------------------------------------------------------}%
+% Well-formed contexts
+inductive ok_ctx : { Γ : ctx } ctype =
+  | ok_empty : ok_ctx [ ]
+  | ok_extend : { A : [ Γ ⊢ tp ] } ok_ctx [ Γ ] → wf_tp [ Γ ⊢ A ]
+                → ok_ctx [ Γ, b : block ( x : tm , A : tp ) ]
+
+and
+% Well-formed types
+inductive wf_tp : ( Γ : ctx ) [ Γ ⊢ tp ] → ctype =
+  | wf_base : ok_ctx [ Γ ] 
+              → wf_tp [ Γ ⊢ base ]
+  | wf_sing : wt_tm [ Γ ⊢ M ] [ Γ ⊢ base ]
+              → wf_tp [ Γ ⊢ sing M ]
+  | wf_pi : wf_tp [ Γ , b : block ( x : tm , A : tp ) ⊢ B[.., b.1] ]
+            → wf_tp [ Γ ⊢ pi A ( \x. B ) ]
+  | wf_sigma : wf_tp [ Γ , b : block ( x : tm , A : tp ) ⊢ B[.., b.1] ]
+            → wf_tp [ Γ ⊢ sigma A ( \x. B ) ]
+
+and
+% Subtypes
+inductive sub_tp : ( Γ : ctx ) [ Γ ⊢ tp ] → [ Γ ⊢ tp ] → ctype =
+  | sub_sing_base : wt_tm [ Γ ⊢ M ] [ Γ ⊢ base ]
+                    → sub_tp [ Γ ⊢ sing M ]  [ Γ ⊢ base ]
+  | sub_sing : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ base ]
+               → sub_tp [ Γ ⊢ sing M1 ] [ Γ ⊢ sing M2 ]
+  | sub_base : ok_ctx [ Γ ]
+               → sub_tp [ Γ ⊢ base ] [ Γ ⊢ base ]
+  | sub_pi : wf_tp [ Γ ⊢ pi A1 ( \x. B1 ) ] 
+             → sub_tp [ Γ ⊢ A2 ] [ Γ ⊢ A1 ] →  sub_tp [ Γ , b : block ( x : tm , A2 : tp ) ⊢ B1[.., b.1] ] [ Γ , b : block ( x : tm , A2 : tp ) ⊢ B2[.., b.1] ]
+             → sub_tp [ Γ ⊢ pi A1 ( \x. B1 ) ] [ Γ ⊢ pi A2 ( \x. B2 ) ]
+
+  | sub_sigma : wf_tp [ Γ ⊢ sigma A2 ( \x. B2 ) ] 
+             → sub_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] →  sub_tp [ Γ , b : block ( x : tm , A1 : tp ) ⊢ B1[.., b.1] ] [ Γ , b : block ( x : tm , A1 : tp ) ⊢ B2[.., b.1] ]
+             → sub_tp [ Γ ⊢ sigma A1 ( \x. B1 ) ] [ Γ ⊢ sigma A2 ( \x. B2 ) ]
+
+and
+% Declarative type equivalence
+inductive deq_tp : ( Γ : ctx ) [ Γ ⊢ tp ] → [ Γ ⊢ tp ] → ctype =
+  | dtp_base : ok_ctx [ Γ ]
+               → deq_tp [ Γ ⊢ base ] [ Γ ⊢ base ]
+  | dtp_sing : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ base ]
+               → deq_tp [ Γ ⊢ sing M1 ] [ Γ ⊢ sing M2 ]
+  | dtp_pi : deq_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → deq_tp [ Γ , b : block ( x : tm , A1 : tp ) ⊢ B1[.., b.1] ] [ Γ , b : block ( x : tm , A1 : tp ) ⊢ B2[.., b.1] ]
+             → deq_tp [ Γ ⊢ pi A1 ( \x. B1 ) ] [ Γ ⊢ pi A2 ( \x. B2 ) ]
+  | dtp_sigma : deq_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → deq_tp [ Γ , b : block ( x : tm , A1 : tp ) ⊢ B1[.., b.1] ] [ Γ , b : block ( x : tm , A1 : tp ) ⊢ B2[.., b.1] ]
+             → deq_tp [ Γ ⊢ sigma A1 ( \x. B1 ) ] [ Γ ⊢ sigma A2 ( \x. B2 ) ]
+
+and
+% Well-typed terms
+inductive wt_tm : ( Γ : ctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tp ] → ctype =
+  % Leaf rules
+  | wt_const : ok_ctx [ Γ ] 
+               → wt_tm [ Γ ⊢ const n ] [ Γ ⊢ base ]
+  | wt_var : ok_ctx [ Γ ]
+             → wt_tm [ Γ ⊢ #b.1 ] [ Γ ⊢ #b.2 ]
+
+  % Intro and elim rules for Π-types
+  | wt_lam : wt_tm [ Γ , b : block ( x : tm , A : tp ) ⊢ M[.., b.1] ] [ Γ , b : block ( x : tm , A : tp ) ⊢ B[.., b.1] ]
+             → wt_tm [ Γ ⊢ lam A ( \x. M ) ] [ Γ ⊢ pi A ( \x. B ) ]
+  | wt_app : wt_tm [ Γ ⊢ M ] [ Γ ⊢ pi A ( \x. B ) ] → wt_tm [ Γ ⊢ N ] [ Γ ⊢ A ]
+             → wt_tm [ Γ ⊢ app M N ] [ Γ ⊢ B[.., N] ]
+
+  % Intro and elim rules for Σ-types
+  | wt_pair : wf_tp  [ Γ ⊢ sigma A ( \x. B ) ] → wt_tm [ Γ ⊢ M1 ] [ Γ ⊢ A ] → wt_tm [ Γ ⊢ M2 ] [ Γ ⊢ B[.., M1] ]
+              → wt_tm [ Γ ⊢ pair M1 M2 ] [ Γ ⊢ sigma A ( \x. B ) ]
+  | wt_proj1 : wt_tm [ Γ ⊢ M ] [ Γ ⊢ sigma A ( \x. B ) ]
+               → wt_tm [ Γ ⊢ proj1 M ] [ Γ ⊢ A ]
+  | wt_proj2 : wt_tm [ Γ ⊢ M ] [ Γ ⊢ sigma A ( \x. B ) ]
+               → wt_tm [ Γ ⊢ proj2 M ] [ Γ ⊢ B[.., proj1 M] ]
+
+  % Type directed rules
+  | wt_sing : wt_tm [ Γ ⊢ M ] [ Γ ⊢ base ]
+              → wt_tm [ Γ ⊢ M ] [ Γ ⊢ sing M ]
+  | wt_sigma : wf_tp [ Γ ⊢ sigma A ( \x. B ) ] → wt_tm [ Γ ⊢ proj1 M ] [ Γ ⊢ A ] → wt_tm [ Γ ⊢ proj2 M ] [ Γ ⊢ B[.., proj1 M] ]
+               → wt_tm [ Γ ⊢ M ] [ Γ ⊢ sigma A ( \x. B ) ]
+  | wt_pi : wf_tp [ Γ ⊢ pi A ( \x. B' ) ] → wt_tm [ Γ ⊢ M ] [ Γ ⊢ pi A ( \x. B' ) ]
+            → wt_tm [ Γ , b : block ( x : tm , A : tp ) ⊢ app M[..] x ] [ Γ , b : block ( x : tm , A : tp ) ⊢ B[.., b.1] ]
+            → wt_tm [ Γ ⊢ M ] [ Γ ⊢ pi A ( \x. B ) ]
+  | wt_subsum : wt_tm [ Γ ⊢ M ] [ Γ ⊢ A1 ] → sub_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ]
+                → wt_tm [ Γ ⊢ M ] [ Γ ⊢ A2 ]
+
+and
+% Declarative term equivalence
+inductive deq_tm : ( Γ : ctx ) [ Γ ⊢ tm ] → [ Γ ⊢ tm ] → [ Γ ⊢ tp ] → ctype =
+  % Axioms of equivalence relation
+  | dtm_refl : wt_tm [ Γ ⊢ M ] [ Γ ⊢ A ]
+               → deq_tm [ Γ ⊢ M ] [ Γ ⊢ M ] [ Γ ⊢ A ]
+  | dtm_sym : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [Γ ⊢ A ]
+              → deq_tm [ Γ ⊢ M2 ] [ Γ ⊢ M1 ] [Γ ⊢ A ]
+  | dtm_trans : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [Γ ⊢ A ] → deq_tm [ Γ ⊢ M2 ] [ Γ ⊢ M3 ] [Γ ⊢ A ]
+                → deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M3 ] [Γ ⊢ A ]
+
+  % Rules for Π-types
+  | dtm_lam : deq_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ] → deq_tm [ Γ , b : block ( x : tm , A : tp ) ⊢ M1[.., b.1] ] 
+                                                    [ Γ , b : block ( x : tm , A : tp ) ⊢ M1[.., b.1] ] 
+                                                    [ Γ , b : block ( x : tm , A : tp ) ⊢ B[.., b.1] ]
+              → deq_tm [ Γ ⊢ lam A1 ( \x. M1 ) ] [ Γ ⊢ lam A2 ( \x. M2 ) ] [ Γ ⊢ pi A1 ( \x. B ) ]
+  | dtm_app : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ pi A ( \x. B ) ] → deq_tm [ Γ ⊢ N1 ] [ Γ ⊢  N2 ] [ Γ ⊢ A ]
+              → deq_tm [ Γ ⊢ app M1 N1 ] [ Γ ⊢ app M2 N2 ] [ Γ ⊢ B[.., N1] ]
+
+  % Rules for Σ-types
+  | dtm_proj1 : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ sigma A ( \x. B ) ]
+                → deq_tm [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M2 ] [ Γ ⊢ A ]
+  | dtm_proj2 : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ sigma A ( \x. B ) ]
+                → deq_tm [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M2 ] [ Γ ⊢ B[.., proj1 M1 ] ]
+  | dtm_pair : wf_tp [ Γ ⊢ sigma A ( \x. B ) ]
+               → deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ N1 ] [ Γ ⊢ A ] → deq_tm [ Γ ⊢ M2 ] [ Γ ⊢ N2 ] [ Γ ⊢ B[.., M1] ]
+               → deq_tm [ Γ ⊢ pair M1 M2 ] [ Γ ⊢ pair N1 N2 ] [ Γ ⊢ sigma A ( \x. B ) ]
+
+  % Extensional rules
+  | dtm_sigma : wf_tp [ Γ ⊢ sigma A ( \x. B ) ]
+                → deq_tm [ Γ ⊢ proj1 M1 ] [ Γ ⊢ proj1 M2 ] [ Γ ⊢ A ] → deq_tm [ Γ ⊢ proj2 M1 ] [ Γ ⊢ proj2 M2 ] [ Γ ⊢ B[.., proj1 M1 ] ]
+                → deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ sigma A ( \x. B ) ]
+  | dtm_pi : wt_tm [ Γ ⊢ M1 ] [ Γ ⊢ pi A ( \x. B1 ) ] → wt_tm [ Γ ⊢ M2 ] [ Γ ⊢ pi A ( \x. B2 ) ]
+             → deq_tm [ Γ , b : block ( x : tm , A : tp ) ⊢ app M1[..] b.1 ] 
+                      [ Γ , b : block ( x : tm , A : tp ) ⊢ app M2[..] b.1 ] 
+                      [ Γ , b : block ( x : tm , A : tp ) ⊢ B[.., b.1] ]
+             → deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ pi A ( \x. B ) ]
+  | dtm_subsum : deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ A1 ] → sub_tp [ Γ ⊢ A1 ] [ Γ ⊢ A2 ]
+                 → deq_tm [ Γ ⊢ M1 ] [ Γ ⊢ M2 ] [ Γ ⊢ A2 ]
+  | dtm_sing : wt_tm [ Γ ⊢ M ] [ Γ ⊢ sing N ] 
+               → deq_tm [ Γ ⊢ M ] [ Γ ⊢ N ] [ Γ ⊢ sing N ]
+;
